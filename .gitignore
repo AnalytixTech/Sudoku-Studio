@@ -1,3 +1,15 @@
 node_modules
 dist
 *.log
+
+# Local env; defaults are documented in .env.example
+.env
+.env.local
+
+# Tesseract downloads its language model at runtime, so the 5 MB copy that was
+# committed here is not used by the app. Kept out of the repo.
+eng.traineddata
+
+# Scratch files
+Screenshot*.png
+.read_render.py

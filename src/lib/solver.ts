@@ -1,3 +1,5 @@
+import { DEFAULT_CONFIG, boxCells, boxIndex, type VariantConfig } from '../sudoku'
+
 export type Cell = [number, number]
 export type Board = number[][]
 
@@ -25,48 +27,35 @@ export interface SolveResult {
   solved: boolean
 }
 
-const N = 9
+// Positional words for box naming, indexed by how many box bands a variant has.
+const BANDS: Record<number, string[]> = {
+  2: ['top', 'bottom'],
+  3: ['top', 'middle', 'bottom'],
+}
+const FILES: Record<number, string[]> = {
+  2: ['left', 'right'],
+  3: ['left', 'center', 'right'],
+}
 
-const ROWS: Cell[][] = Array.from({ length: N }, (_, r) =>
-  Array.from({ length: N }, (_, c) => [r, c] as Cell)
-)
-const COLS: Cell[][] = Array.from({ length: N }, (_, c) =>
-  Array.from({ length: N }, (_, r) => [r, c] as Cell)
-)
-const BOXES: Cell[][] = Array.from({ length: N }, (_, b) => {
-  const cells: Cell[] = []
-  const br = Math.floor(b / 3) * 3
-  const bc = (b % 3) * 3
-  for (let r = br; r < br + 3; r++)
-    for (let c = bc; c < bc + 3; c++) cells.push([r, c])
-  return cells
-})
-
-const BOX_NAMES = [
-  'top-left', 'top-center', 'top-right',
-  'middle-left', 'middle-center', 'middle-right',
-  'bottom-left', 'bottom-center', 'bottom-right',
-]
+/**
+ * A complete noun phrase for a box/region, with no leading article to add:
+ * "the top-left box" for grids whose boxes form a 2x2..3x3 arrangement,
+ * "region 4" for jigsaw variants and any other box layout.
+ */
+function boxPhraseFor(b: number, config: VariantConfig): string {
+  if (config.isIrregular) return `region ${b + 1}`
+  const perRow = config.size / config.boxWidth
+  const perCol = config.size / config.boxHeight
+  const bands = BANDS[perCol]
+  const files = FILES[perRow]
+  if (!bands || !files) return `region ${b + 1}`
+  return `the ${bands[Math.floor(b / perRow)]}-${files[b % perRow]} box`
+}
 
 interface StandardUnit {
   cells: Cell[]
   label: string
   kind: 'row' | 'col' | 'box'
-}
-
-const UNITS: StandardUnit[] = [
-  ...ROWS.map((cells, r) => ({ cells, label: `Row ${r + 1}`, kind: 'row' as const })),
-  ...COLS.map((cells, c) => ({ cells, label: `Column ${c + 1}`, kind: 'col' as const })),
-  ...BOXES.map((cells, b) => ({ cells, label: `the ${BOX_NAMES[b]} box`, kind: 'box' as const })),
-]
-
-function boxOf(r: number, c: number): number {
-  return Math.floor(r / 3) * 3 + Math.floor(c / 3)
-}
-
-function unitsFor(r: number, c: number): StandardUnit[] {
-  const box = boxOf(r, c)
-  return [UNITS[r], UNITS[9 + c], UNITS[18 + box]]
 }
 
 function cellLabel(r: number, c: number): string {
@@ -89,27 +78,68 @@ function targetsValues(targets: number[][]): number[] {
   return Array.from(new Set(targets.map((t) => t[2]))).sort((a, b) => a - b)
 }
 
-import { DEFAULT_CONFIG, type VariantConfig } from '../sudoku'
-
 export class SudokuSolver {
   grid: Board
   candidates: Set<number>[][]
   steps: Step[] = []
   config: VariantConfig
 
+  private N: number
+  private rows: Cell[][]
+  private cols: Cell[][]
+  private boxes: Cell[][]
+  private units: StandardUnit[]
+
   constructor(grid: Board, config: VariantConfig = DEFAULT_CONFIG) {
     this.config = config
     const N = config.size
+    this.N = N
     this.grid = grid.map((row) => row.slice())
     this.candidates = Array.from({ length: N }, () =>
       Array.from({ length: N }, () => new Set<number>())
     )
+
+    this.rows = Array.from({ length: N }, (_, r) =>
+      Array.from({ length: N }, (_, c) => [r, c] as Cell)
+    )
+    this.cols = Array.from({ length: N }, (_, c) =>
+      Array.from({ length: N }, (_, r) => [r, c] as Cell)
+    )
+    this.boxes = Array.from({ length: N }, (_, b) => boxCells(b, config) as Cell[])
+
+    this.units = [
+      ...this.rows.map((cells, r) => ({ cells, label: `Row ${r + 1}`, kind: 'row' as const })),
+      ...this.cols.map((cells, c) => ({ cells, label: `Column ${c + 1}`, kind: 'col' as const })),
+      ...this.boxes.map((cells, b) => ({
+        cells,
+        label: boxPhraseFor(b, config),
+        kind: 'box' as const,
+      })),
+    ]
+
     this.initCandidates()
   }
 
+  private boxOf(r: number, c: number): number {
+    return boxIndex(r, c, this.config)
+  }
+
+  private boxPhrase(b: number): string {
+    return boxPhraseFor(b, this.config)
+  }
+
+  private unitsFor(r: number, c: number): StandardUnit[] {
+    const N = this.N
+    return [this.units[r], this.units[N + c], this.units[2 * N + this.boxOf(r, c)]]
+  }
+
+  private allValues(): number[] {
+    return Array.from({ length: this.N }, (_, i) => i + 1)
+  }
+
   private initCandidates(): void {
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
+    for (let r = 0; r < this.N; r++) {
+      for (let c = 0; c < this.N; c++) {
         if (this.grid[r][c] === 0) {
           this.candidates[r][c] = this.valuesAllowedByUnits(r, c)
         }
@@ -118,15 +148,15 @@ export class SudokuSolver {
   }
 
   private valuesAllowedByUnits(r: number, c: number): Set<number> {
-    const allowed = new Set<number>([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    for (const unit of unitsFor(r, c)) {
+    const allowed = new Set<number>(this.allValues())
+    for (const unit of this.unitsFor(r, c)) {
       for (const [rr, cc] of unit.cells) allowed.delete(this.grid[rr][cc])
     }
     return allowed
   }
 
   private handleUnitAfterPlacement(r: number, c: number, value: number): void {
-    for (const unit of unitsFor(r, c)) {
+    for (const unit of this.unitsFor(r, c)) {
       for (const [rr, cc] of unit.cells) {
         if (rr !== r || cc !== c) this.candidates[rr][cc].delete(value)
       }
@@ -134,8 +164,8 @@ export class SudokuSolver {
   }
 
   private syncFromGrid(): void {
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
+    for (let r = 0; r < this.N; r++) {
+      for (let c = 0; c < this.N; c++) {
         if (this.grid[r][c]) {
           this.candidates[r][c] = new Set()
         } else {
@@ -173,8 +203,8 @@ export class SudokuSolver {
 
   private emptyCells(): Cell[] {
     const out: Cell[] = []
-    for (let r = 0; r < N; r++)
-      for (let c = 0; c < N; c++)
+    for (let r = 0; r < this.N; r++)
+      for (let c = 0; c < this.N; c++)
         if (this.grid[r][c] === 0) out.push([r, c])
     return out
   }
@@ -215,21 +245,21 @@ export class SudokuSolver {
   }
 
   private nakedSingle(): Step | null {
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
+    for (let r = 0; r < this.N; r++) {
+      for (let c = 0; c < this.N; c++) {
         if (this.grid[r][c] === 0 && this.candidates[r][c].size === 1) {
           const v = Array.from(this.candidates[r][c])[0]
           const others: number[][] = []
-          for (let x = 1; x <= 9; x++) if (x !== v) others.push([r, c, x])
+          for (const x of this.allValues()) if (x !== v) others.push([r, c, x])
           const place: Placement = { row: r, col: c, value: v }
           const peerValues = Array.from(this.peerValues(r, c)).sort((a, b) => a - b)
           const peerTxt = peerValues.map(String).join(', ')
-          const sect = `${BOX_NAMES[boxOf(r, c)]} box, and crosses Row ${r + 1} and Column ${c + 1}`
+          const sect = `${this.boxPhrase(this.boxOf(r, c))}, and crosses Row ${r + 1} and Column ${c + 1}`
           return {
             id: 0,
             technique: 'Naked Single',
             kind: 'placement',
-            description: `${cellLabel(r, c)} (in the ${sect}) is the only place ${peerTxt} are blocked elsewhere, so only ${v} is still possible there. ${v} is placed.`,
+            description: `${cellLabel(r, c)} (in ${sect}) is the only place ${peerTxt} are blocked elsewhere, so only ${v} is still possible there. ${v} is placed.`,
             placement: place,
             focus: [[r, c]],
             eliminations: others,
@@ -242,8 +272,8 @@ export class SudokuSolver {
   }
 
   private hiddenSingle(): Step | null {
-    for (const unit of UNITS) {
-      for (let v = 1; v <= 9; v++) {
+    for (const unit of this.units) {
+      for (const v of this.allValues()) {
         const holders: Cell[] = unit.cells.filter(
           ([r, c]) => this.grid[r][c] === 0 && this.candidates[r][c].has(v)
         )
@@ -254,7 +284,7 @@ export class SudokuSolver {
             .sort((a, b) => a - b)
             .map((x) => [r, c, x])
           const blocked = this.whyValueAbsent(v, unit, [r, c])
-          let base = `Scanning the ${unit.label}, the number ${v} fits in exactly one empty cell, ${cellLabel(r, c)} (${BOX_NAMES[boxOf(r, c)]} box, crossing Row ${r + 1} and Column ${c + 1}).`
+          let base = `Scanning ${unit.label}, the number ${v} fits in exactly one empty cell, ${cellLabel(r, c)} (${this.boxPhrase(this.boxOf(r, c))}, crossing Row ${r + 1} and Column ${c + 1}).`
           if (blocked.length > 0) {
             base += ' It cannot be the others because of their blocking rows/columns/boxes: ' + blocked.join('; ') + '.'
           }
@@ -282,9 +312,9 @@ export class SudokuSolver {
     for (const [r, c] of unit.cells) {
       if (r === target[0] && c === target[1]) continue
       if (this.grid[r][c] !== 0) continue
-      for (const peer of unitsFor(r, c)) {
+      for (const peer of this.unitsFor(r, c)) {
         if (peer.cells.some(([rr, cc]) => this.grid[rr][cc] === v)) {
-          reasons.push(`${cellLabel(r, c)} cannot take ${v} because the ${peer.label} already has it`)
+          reasons.push(`${cellLabel(r, c)} cannot take ${v} because ${peer.label} already has it`)
           break
         }
       }
@@ -293,7 +323,7 @@ export class SudokuSolver {
   }
 
   private nakedPair(): Step | null {
-    for (const unit of UNITS) {
+    for (const unit of this.units) {
       const empties = unit.cells.filter(([r, c]) => this.grid[r][c] === 0)
       const pairs = empties.filter(([r, c]) => this.candidates[r][c].size === 2)
       for (let i = 0; i < pairs.length; i++) {
@@ -315,7 +345,7 @@ export class SudokuSolver {
             id: 0,
             technique: 'Naked Pair',
             kind: 'elimination',
-            description: `In the ${unit.label}, the only places ${v1} and ${v2} can sit are ${cellLabel(a[0], a[1])} and ${cellLabel(b[0], b[1])} (both cells hold only these two values). Together they use up both ${v1} and ${v2}, so no other cell in the ${unit.label} may contain them.`,
+            description: `In ${unit.label}, the only places ${v1} and ${v2} can sit are ${cellLabel(a[0], a[1])} and ${cellLabel(b[0], b[1])} (both cells hold only these two values). Together they use up both ${v1} and ${v2}, so no other cell in ${unit.label} may contain them.`,
             placement: null,
             focus: [a, b],
             eliminations: targets,
@@ -328,12 +358,14 @@ export class SudokuSolver {
   }
 
   private hiddenPair(): Step | null {
-    for (const unit of UNITS) {
+    const values = this.allValues()
+    for (const unit of this.units) {
       const empties = unit.cells.filter(([r, c]) => this.grid[r][c] === 0)
-      for (let v1 = 1; v1 <= 9; v1++) {
+      for (const v1 of values) {
         const h1 = empties.filter(([r, c]) => this.candidates[r][c].has(v1))
         if (h1.length !== 2) continue
-        for (let v2 = v1 + 1; v2 <= 9; v2++) {
+        for (const v2 of values) {
+          if (v2 <= v1) continue
           const h2 = empties.filter(([r, c]) => this.candidates[r][c].has(v2))
           if (!sameCells(h1, h2)) continue
           const a = h1[0]
@@ -351,7 +383,7 @@ export class SudokuSolver {
             id: 0,
             technique: 'Hidden Pair',
             kind: 'elimination',
-            description: `In the ${unit.label}, ${v1} and ${v2} each have only the same two possible spots, ${cellLabel(a[0], a[1])} and ${cellLabel(b[0], b[1])}. These two cells must hold ${v1} and ${v2} (in some order), so the other candidates ${valsText} inside them are impossible.`,
+            description: `In ${unit.label}, ${v1} and ${v2} each have only the same two possible spots, ${cellLabel(a[0], a[1])} and ${cellLabel(b[0], b[1])}. These two cells must hold ${v1} and ${v2} (in some order), so the other candidates ${valsText} inside them are impossible.`,
             placement: null,
             focus: [a, b],
             eliminations: targets,
@@ -364,11 +396,11 @@ export class SudokuSolver {
   }
 
   private pointing(): Step | null {
-    for (let b = 0; b < N; b++) {
-      const box = BOXES[b]
-      const label = `the ${BOX_NAMES[b]} box`
+    for (let b = 0; b < this.N; b++) {
+      const box = this.boxes[b]
+      const label = this.boxPhrase(b)
       const empties = box.filter(([r, c]) => this.grid[r][c] === 0)
-      for (let v = 1; v <= 9; v++) {
+      for (const v of this.allValues()) {
         const holders = empties.filter(([r, c]) => this.candidates[r][c].has(v))
         if (holders.length < 2 || holders.length > 3) continue
         const rows = new Set(holders.map(([r]) => r))
@@ -376,7 +408,7 @@ export class SudokuSolver {
         if (rows.size === 1) {
           const row = Array.from(rows)[0]! // rows.size === 1 guarantees an element
           const outside: number[][] = []
-          for (const [r, c] of ROWS[row]) {
+          for (const [r, c] of this.rows[row]) {
             if (!holders.some(([hr, hc]) => hr === r && hc === c) && this.grid[r][c] === 0 && this.candidates[r][c].has(v)) {
               outside.push([r, c, v])
             }
@@ -397,7 +429,7 @@ export class SudokuSolver {
         if (cols.size === 1) {
           const col = Array.from(cols)[0]! // cols.size === 1 guarantees an element
           const outside: number[][] = []
-          for (const [r, c] of COLS[col]) {
+          for (const [r, c] of this.cols[col]) {
             if (!holders.some(([hr, hc]) => hr === r && hc === c) && this.grid[r][c] === 0 && this.candidates[r][c].has(v)) {
               outside.push([r, c, v])
             }
@@ -421,17 +453,18 @@ export class SudokuSolver {
   }
 
   private boxLine(): Step | null {
-    for (const unit of UNITS) {
+    for (const unit of this.units) {
       if (unit.kind === 'box') continue
       const empties = unit.cells.filter(([r, c]) => this.grid[r][c] === 0)
-      for (let v = 1; v <= 9; v++) {
+      for (const v of this.allValues()) {
         const holders = empties.filter(([r, c]) => this.candidates[r][c].has(v))
         if (holders.length === 0) continue
-        const boxes = new Set(holders.map(([r, c]) => boxOf(r, c)))
+        const boxes = new Set(holders.map(([r, c]) => this.boxOf(r, c)))
         if (boxes.size !== 1) continue
         const b = Array.from(boxes)[0]! // boxes.size === 1 guarantees an element
+        const label = this.boxPhrase(b)
         const outside: number[][] = []
-        for (const [r, c] of BOXES[b]) {
+        for (const [r, c] of this.boxes[b]) {
           if (!holders.some(([hr, hc]) => hr === r && hc === c) && this.grid[r][c] === 0 && this.candidates[r][c].has(v)) {
             outside.push([r, c, v])
           }
@@ -441,7 +474,7 @@ export class SudokuSolver {
             id: 0,
             technique: 'Box-Line Reduction',
             kind: 'elimination',
-            description: `Along ${unit.label}, every possible spot for ${v} is inside ${BOX_NAMES[b]} box (cells ${cellsText(holders)}). Wherever ${v} sits there, it fills that box's ${v}, so the other cells in the ${BOX_NAMES[b]} box cannot use ${v}.`,
+            description: `Along ${unit.label}, every possible spot for ${v} is inside ${label} (cells ${cellsText(holders)}). Wherever ${v} sits there, it fills that region's ${v}, so the other cells in ${label} cannot use ${v}.`,
             placement: null,
             focus: holders,
             eliminations: outside,
@@ -454,7 +487,7 @@ export class SudokuSolver {
   }
 
   private nakedTriple(): Step | null {
-    for (const unit of UNITS) {
+    for (const unit of this.units) {
       const empties = unit.cells.filter(([r, c]) => this.grid[r][c] === 0)
       if (empties.length < 3) continue
       for (let i = 0; i < empties.length; i++) {
@@ -482,7 +515,7 @@ export class SudokuSolver {
               id: 0,
               technique: 'Naked Triple',
               kind: 'elimination',
-              description: `In the ${unit.label}, three cells ${cellsText([a, b, d])} can only contain the values ${vals}. Those three numbers fill those three cells (in some order), so they are removed from every other cell in the ${unit.label}.`,
+              description: `In ${unit.label}, three cells ${cellsText([a, b, d])} can only contain the values ${vals}. Those three numbers fill those three cells (in some order), so they are removed from every other cell in ${unit.label}.`,
               placement: null,
               focus: [a, b, d],
               eliminations: targets,
@@ -496,12 +529,12 @@ export class SudokuSolver {
   }
 
   private xWing(): Step | null {
-    for (let ia = 0; ia < N; ia++) {
-      for (let v = 1; v <= 9; v++) {
-        const aCols = ROWS[ia].filter(([r, c]) => this.grid[r][c] === 0 && this.candidates[r][c].has(v))
+    for (let ia = 0; ia < this.N; ia++) {
+      for (const v of this.allValues()) {
+        const aCols = this.rows[ia].filter(([r, c]) => this.grid[r][c] === 0 && this.candidates[r][c].has(v))
         if (aCols.length !== 2) continue
-        for (let ib = ia + 1; ib < N; ib++) {
-          const bCols = ROWS[ib].filter(([r, c]) => this.grid[r][c] === 0 && this.candidates[r][c].has(v))
+        for (let ib = ia + 1; ib < this.N; ib++) {
+          const bCols = this.rows[ib].filter(([r, c]) => this.grid[r][c] === 0 && this.candidates[r][c].has(v))
           if (bCols.length !== 2) continue
           const c1 = aCols[0][1]
           const c2 = aCols[1][1]
@@ -510,7 +543,7 @@ export class SudokuSolver {
           if (c1 !== b1 || c2 !== b2) continue
           const targets: number[][] = []
           for (const col of [c1, c2]) {
-            for (const [r, c] of COLS[col]) {
+            for (const [r, c] of this.cols[col]) {
               if (r === ia || r === ib) continue
               if (this.grid[r][c] === 0 && this.candidates[r][c].has(v)) targets.push([r, c, v])
             }
@@ -534,17 +567,17 @@ export class SudokuSolver {
   }
 
   private yWing(): Step | null {
-    for (let pr = 0; pr < N; pr++) {
-      for (let pc = 0; pc < N; pc++) {
+    for (let pr = 0; pr < this.N; pr++) {
+      for (let pc = 0; pc < this.N; pc++) {
         if (this.grid[pr][pc] !== 0 || this.candidates[pr][pc].size !== 2) continue
         const [x, y] = Array.from(this.candidates[pr][pc])
 
         const peers: Cell[] = []
-        for (let r = 0; r < N; r++) {
-          for (let c = 0; c < N; c++) {
+        for (let r = 0; r < this.N; r++) {
+          for (let c = 0; c < this.N; c++) {
             if (r === pr && c === pc) continue
             if (this.grid[r][c] !== 0 || this.candidates[r][c].size !== 2) continue
-            if (r === pr || c === pc || boxOf(r, c) === boxOf(pr, pc)) {
+            if (r === pr || c === pc || this.boxOf(r, c) === this.boxOf(pr, pc)) {
               peers.push([r, c])
             }
           }
@@ -571,13 +604,13 @@ export class SudokuSolver {
             if (z === null) continue
 
             const targets: number[][] = []
-            for (let r = 0; r < N; r++) {
-              for (let c = 0; c < N; c++) {
+            for (let r = 0; r < this.N; r++) {
+              for (let c = 0; c < this.N; c++) {
                 if ((r === pr && c === pc) || (r === r1 && c === c1) || (r === r2 && c === c2)) continue
                 if (this.grid[r][c] !== 0 || !this.candidates[r][c].has(z)) continue
 
-                const seesPincer1 = r === r1 || c === c1 || boxOf(r, c) === boxOf(r1, c1)
-                const seesPincer2 = r === r2 || c === c2 || boxOf(r, c) === boxOf(r2, c2)
+                const seesPincer1 = r === r1 || c === c1 || this.boxOf(r, c) === this.boxOf(r1, c1)
+                const seesPincer2 = r === r2 || c === c2 || this.boxOf(r, c) === this.boxOf(r2, c2)
 
                 if (seesPincer1 && seesPincer2) {
                   targets.push([r, c, z])
@@ -605,11 +638,11 @@ export class SudokuSolver {
   }
 
   private swordfish(): Step | null {
-    for (let v = 1; v <= 9; v++) {
+    for (const v of this.allValues()) {
       const rowCandCols: { row: number; cols: number[] }[] = []
-      for (let r = 0; r < N; r++) {
+      for (let r = 0; r < this.N; r++) {
         const cols: number[] = []
-        for (let c = 0; c < N; c++) {
+        for (let c = 0; c < this.N; c++) {
           if (this.grid[r][c] === 0 && this.candidates[r][c].has(v)) cols.push(c)
         }
         if (cols.length >= 2 && cols.length <= 3) {
@@ -631,7 +664,7 @@ export class SudokuSolver {
 
             const targets: number[][] = []
             for (const col of allCols) {
-              for (let r = 0; r < N; r++) {
+              for (let r = 0; r < this.N; r++) {
                 if (r === r1.row || r === r2.row || r === r3.row) continue
                 if (this.grid[r][col] === 0 && this.candidates[r][col].has(v)) {
                   targets.push([r, col, v])
@@ -665,8 +698,8 @@ export class SudokuSolver {
 
   private guessStep(): Step | null {
     let best: Cell | null = null
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
+    for (let r = 0; r < this.N; r++) {
+      for (let c = 0; c < this.N; c++) {
         if (this.grid[r][c] !== 0) continue
         if (!best || this.candidates[r][c].size < this.candidates[best[0]][best[1]].size) best = [r, c]
       }
@@ -677,7 +710,7 @@ export class SudokuSolver {
     for (const v of vals) {
       const trial = this.grid.map((row) => row.slice())
       trial[r][c] = v
-      if (backtrack(trial)) {
+      if (backtrack(trial, this.config)) {
         return {
           id: 0,
           technique: 'Guided Trial',
@@ -686,7 +719,7 @@ export class SudokuSolver {
           placement: { row: r, col: c, value: v },
           focus: [[r, c]],
           eliminations: vals.filter((x) => x !== v).map((x) => [r, c, x]),
-          rank: 9,
+          rank: 11,
         }
       }
     }
@@ -695,7 +728,7 @@ export class SudokuSolver {
 
   private peerValues(r: number, c: number): Set<number> {
     const used = new Set<number>()
-    for (const unit of unitsFor(r, c)) {
+    for (const unit of this.unitsFor(r, c)) {
       for (const [rr, cc] of unit.cells) used.add(this.grid[rr][cc])
     }
     used.delete(0)
@@ -721,7 +754,8 @@ function sameCells(a: Cell[], b: Cell[]): boolean {
   return true
 }
 
-export function backtrack(grid: Board): boolean {
+export function backtrack(grid: Board, config: VariantConfig = DEFAULT_CONFIG): boolean {
+  const N = config.size
   let best: { r: number; c: number; cand: number[] } | null = null
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
@@ -731,11 +765,11 @@ export function backtrack(grid: Board): boolean {
         used.add(grid[r][i])
         used.add(grid[i][c])
       }
-      const br = Math.floor(r / 3) * 3
-      const bc = Math.floor(c / 3) * 3
-      for (let i = br; i < br + 3; i++)
-        for (let j = bc; j < bc + 3; j++) used.add(grid[i][j])
-      const cand = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((v) => !used.has(v))
+      for (const [rr, cc] of boxCells(boxIndex(r, c, config), config)) {
+        used.add(grid[rr][cc])
+      }
+      const cand: number[] = []
+      for (let v = 1; v <= N; v++) if (!used.has(v)) cand.push(v)
       if (!best || cand.length < best.cand.length) best = { r, c, cand }
     }
   }
@@ -743,7 +777,7 @@ export function backtrack(grid: Board): boolean {
   const { r, c, cand } = best
   for (const v of cand) {
     grid[r][c] = v
-    if (backtrack(grid)) return true
+    if (backtrack(grid, config)) return true
     grid[r][c] = 0
   }
   grid[r][c] = 0

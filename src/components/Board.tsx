@@ -109,6 +109,7 @@ function Board({
                 userNotes={userNotes?.[key]}
                 showNotes={showNotes}
                 highlightDigit={digitHighlight}
+                size={config.size}
                 onSelect={onSelect}
               />
             )

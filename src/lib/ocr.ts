@@ -12,11 +12,6 @@ export interface GridLines {
   cols: number[]
 }
 
-export interface Extracted {
-  grid: number[][]
-  confidence: number[][]
-}
-
 const ANALYZE_W = 400
 
 // --------------------------------------------------------------------------
@@ -816,7 +811,7 @@ export async function ocrCell(canvas: HTMLCanvasElement): Promise<{ text: string
 // Validation of Sudoku rule conflicts
 // --------------------------------------------------------------------------
 
-function computeConflicts(grid: number[][]): boolean[][] {
+export function computeConflicts(grid: number[][]): boolean[][] {
   const conflicts = Array.from({ length: 9 }, () => Array(9).fill(false))
 
   // Check rows

@@ -98,7 +98,7 @@ function StartScreen({
           </div>
           <div className="tile-info">
             <h3>1v1 Online Battle</h3>
-            <p>Compete live on the same hidden puzzle</p>
+            <p>Race a friend on any device, same hidden puzzle</p>
           </div>
         </button>
 

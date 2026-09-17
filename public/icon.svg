@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Sudoku Studio">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f7bf2"/>
+      <stop offset="0.40" stop-color="#3f4ac4"/>
+      <stop offset="1" stop-color="#111a45"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.32" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="115.2"/></clipPath>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6.14" stdDeviation="9.22" flood-color="#0a1028" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#g)"/>
+    <rect width="512" height="512" fill="url(#sheen)"/>
+    <g fill="#ffffff" opacity="0.38"><rect x="166.31" y="0" width="8.70" height="512"/><rect x="336.98" y="0" width="8.70" height="512"/><rect x="0" y="166.31" width="512" height="8.70"/><rect x="0" y="336.98" width="512" height="8.70"/></g>
+    <g filter="url(#drop)">
+      <rect x="177.49" y="177.49" width="157.01" height="157.01" rx="26.69" fill="#ffffff"/>
+    </g>
+    <path transform="translate(206.419 299.964) scale(0.12212)" d="M200 0Q164 0 133-20.500Q102-41 80-75.500Q58-110 51-153L608-153Q608-153 608-153Q608-153 608-153L608-281Q608-281 608-281Q608-281 608-281L200-281Q160-281 127-301Q94-321 74-354Q54-387 54-427L54-575Q54-615 74-648Q94-681 127-700.500Q160-720 200-720L616-720Q656-720 689-700.500Q722-681 741.500-648Q761-615 761-575L761-145Q761-106 741.500-73Q722-40 689-20Q656 0 616 0L200 0M208-435L608-435L608-567Q608-567 608-567Q608-567 608-567L208-567Q208-567 208-567Q208-567 208-567L208-435Q208-435 208-435Q208-435 208-435" fill="#232e86"/>
+  </g>
+  <rect x="4.10" y="4.10" width="503.81" height="503.81" rx="111.10" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="8.19"/>
+</svg>

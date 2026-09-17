@@ -1,0 +1,25 @@
+# Deploys the battle relay (server/index.js) to Render as a Node web service.
+# The Sudoku app itself stays on Netlify/Vercel; only this WebSocket server
+# needs a host that keeps a process alive.
+#
+# After the first deploy, copy the service URL and set VITE_WS_URL on
+# Netlify/Vercel to its wss:// form, e.g. wss://sudoku-battle-relay.onrender.com
+#
+# Note: Render's free instances sleep after ~15 minutes idle, so the first
+# connection after a quiet spell can take 30-60s to wake. The client retries
+# with backoff, so it recovers on its own.
+
+services:
+  - type: web
+    name: sudoku-battle-relay
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Set this to your deployed app origin to stop other sites using the relay.
+      - key: ALLOWED_ORIGINS
+        sync: false

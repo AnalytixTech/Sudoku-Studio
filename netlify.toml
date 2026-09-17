@@ -1,0 +1,22 @@
+# Static hosting for the Sudoku app.
+#
+# The battle relay (server/index.js) is a long-lived WebSocket server and
+# CANNOT run on Netlify -- Netlify Functions are serverless and terminate per
+# request. Deploy the relay to a Node host and point VITE_WS_URL at it:
+#
+#   Site settings -> Environment variables -> VITE_WS_URL = wss://your-relay.onrender.com
+#
+# VITE_ vars are inlined at build time, so change it and redeploy.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Single-page app: every path serves index.html so ?room=... invite links work.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

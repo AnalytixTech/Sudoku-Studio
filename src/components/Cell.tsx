@@ -7,18 +7,21 @@ interface CandidatesProps {
   highlightDigit: number
   selected: boolean
   isSolverStep: boolean
+  size: number
 }
 
-function Candidates({ values, userNotes, strike, highlightDigit, selected, isSolverStep }: CandidatesProps) {
+function Candidates({ values, userNotes, strike, highlightDigit, selected, isSolverStep, size }: CandidatesProps) {
   const cells = []
   const hasUserNotes = userNotes !== undefined && userNotes.size > 0
+  // Keep the pip grid as square as the digit count allows (4 -> 2 cols, 6/8/9 -> 3).
+  const pipStyle = { gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(size))}, 1fr)` }
 
   // Do not show faded auto-candidates initially unless user has notes or a solver step is active
   if (!hasUserNotes && !isSolverStep) {
-    return <div className="pips" />
+    return <div className="pips" style={pipStyle} />
   }
 
-  for (let v = 1; v <= 9; v++) {
+  for (let v = 1; v <= size; v++) {
     const has = hasUserNotes ? userNotes.has(v) : values.includes(v)
     const struck = strike?.has(v)
     const hi = highlightDigit === v
@@ -38,7 +41,7 @@ function Candidates({ values, userNotes, strike, highlightDigit, selected, isSol
       </span>
     )
   }
-  return <div className="pips">{cells}</div>
+  return <div className="pips" style={pipStyle}>{cells}</div>
 }
 
 export interface CellProps {
@@ -63,6 +66,7 @@ export interface CellProps {
   userNotes?: Set<number>
   showNotes: boolean
   highlightDigit: number
+  size: number
   onSelect: (r: number, c: number) => void
 }
 
@@ -88,6 +92,7 @@ function Cell({
   userNotes,
   showNotes,
   highlightDigit,
+  size,
   onSelect,
 }: CellProps) {
   let cls = 'cell'
@@ -130,6 +135,7 @@ function Cell({
           highlightDigit={highlightDigit}
           selected={selected}
           isSolverStep={isSolverStep}
+          size={size}
         />
       ) : (
         <span className="num empty" />

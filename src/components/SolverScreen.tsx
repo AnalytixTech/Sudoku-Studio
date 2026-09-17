@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { computeCandidates, cloneGrid, countEmpty } from '../sudoku'
 import { SudokuSolver, type Step } from '../lib/solver'
 import {
+  computeConflicts,
   detectBounds,
   detectGridLines,
   extractGrid,
@@ -48,7 +49,6 @@ export default function SolverScreen({ onBack }: SolverScreenProps) {
   const [status, setStatus] = useState('')
   const [grid, setGrid] = useState<number[][]>(emptyGrid())
   const [confidence, setConfidence] = useState<number[][]>(emptyGrid())
-  const [conflicts, setConflicts] = useState<boolean[][]>(emptyGrid().map((row) => row.map(() => false)))
   const [previews, setPreviews] = useState<string[][]>(emptyGrid().map((row) => row.map(() => '')))
   const [customLines, setCustomLines] = useState<GridLines | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -60,70 +60,13 @@ export default function SolverScreen({ onBack }: SolverScreenProps) {
   const [playing, setPlaying] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'warn' | 'error'; text: string } | null>(null)
 
-  // Recalculate conflicts when user edits grid in review phase
+  // Conflicts are derived from the grid, so edits need no separate bookkeeping.
+  const conflicts = useMemo(() => computeConflicts(grid), [grid])
+
   const updateGridCell = useCallback((r: number, c: number, val: number) => {
     setGrid((prevGrid) => {
       const nextGrid = prevGrid.map((row) => row.slice())
       nextGrid[r][c] = val
-
-      // Re-evaluate conflicts
-      const nextConflicts = emptyGrid().map((row) => row.map(() => false))
-      // Row check
-      for (let rowIdx = 0; rowIdx < 9; rowIdx++) {
-        const seen: Record<number, number[]> = {}
-        for (let colIdx = 0; colIdx < 9; colIdx++) {
-          const v = nextGrid[rowIdx][colIdx]
-          if (v > 0) {
-            seen[v] = seen[v] || []
-            seen[v].push(colIdx)
-          }
-        }
-        for (const v in seen) {
-          if (seen[v].length > 1) {
-            for (const colIdx of seen[v]) nextConflicts[rowIdx][colIdx] = true
-          }
-        }
-      }
-      // Col check
-      for (let colIdx = 0; colIdx < 9; colIdx++) {
-        const seen: Record<number, number[]> = {}
-        for (let rowIdx = 0; rowIdx < 9; rowIdx++) {
-          const v = nextGrid[rowIdx][colIdx]
-          if (v > 0) {
-            seen[v] = seen[v] || []
-            seen[v].push(rowIdx)
-          }
-        }
-        for (const v in seen) {
-          if (seen[v].length > 1) {
-            for (const rowIdx of seen[v]) nextConflicts[rowIdx][colIdx] = true
-          }
-        }
-      }
-      // Box check
-      for (let boxR = 0; boxR < 3; boxR++) {
-        for (let boxC = 0; boxC < 3; boxC++) {
-          const seen: Record<number, [number, number][]> = {}
-          for (let dr = 0; dr < 3; dr++) {
-            for (let dc = 0; dc < 3; dc++) {
-              const rowIdx = boxR * 3 + dr
-              const colIdx = boxC * 3 + dc
-              const v = nextGrid[rowIdx][colIdx]
-              if (v > 0) {
-                seen[v] = seen[v] || []
-                seen[v].push([rowIdx, colIdx])
-              }
-            }
-          }
-          for (const v in seen) {
-            if (seen[v].length > 1) {
-              for (const [rowIdx, colIdx] of seen[v]) nextConflicts[rowIdx][colIdx] = true
-            }
-          }
-        }
-      }
-
-      setConflicts(nextConflicts)
       return nextGrid
     })
   }, [])
@@ -216,7 +159,6 @@ export default function SolverScreen({ onBack }: SolverScreenProps) {
       })
       setGrid(extracted.grid)
       setConfidence(extracted.confidence)
-      setConflicts(extracted.conflicts)
       setPreviews(extracted.previews)
       setSelected(null)
       setActiveCell(null)

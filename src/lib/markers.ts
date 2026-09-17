@@ -1,4 +1,5 @@
 import type { Step } from './solver'
+import { DEFAULT_CONFIG, boxIndex, type VariantConfig } from '../sudoku'
 
 export interface Markers {
   focus: string[]
@@ -9,7 +10,10 @@ export interface Markers {
   stepBoxes: Set<number>
 }
 
-export function markersFor(step: Step | null | undefined): Markers {
+export function markersFor(
+  step: Step | null | undefined,
+  config: VariantConfig = DEFAULT_CONFIG
+): Markers {
   if (!step) {
     return {
       focus: [],
@@ -37,7 +41,7 @@ export function markersFor(step: Step | null | undefined): Markers {
   const addCellUnits = (r: number, c: number) => {
     stepRows.add(r)
     stepCols.add(c)
-    stepBoxes.add(Math.floor(r / 3) * 3 + Math.floor(c / 3))
+    stepBoxes.add(boxIndex(r, c, config))
   }
 
   if (step.placement) {

@@ -135,10 +135,13 @@ export function recordGameWin(diff: Difficulty, timeSec: number, mistakes: numbe
   return stats
 }
 
+/**
+ * Call on victory only. The match itself is counted by recordBattlePlayed when
+ * it starts, so that a player who loses still gets credit for competing.
+ */
 export function recordBattleWin(): void {
   const extra = loadExtraStats()
   extra.battleWon += 1
-  extra.battlePlayed += 1
   saveExtraStats(extra)
   saveUserXp(loadUserXp() + 300)
 }

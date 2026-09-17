@@ -190,7 +190,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       id: 'battle_first',
       category: 'battle',
       title: 'First Blood',
-      desc: 'Win your first 1v1 Online Battle',
+      desc: 'Win your first 1v1 Battle duel',
       icon: '⚔️',
       unlocked: extraStats.battleWon >= 1,
     },
@@ -198,7 +198,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       id: 'battle_5played',
       category: 'battle',
       title: 'Battle Veteran',
-      desc: 'Compete in 5 Online Battle duels',
+      desc: 'Compete in 5 Battle duels',
       icon: '🛡️',
       unlocked: extraStats.battlePlayed >= 5,
     },
@@ -206,7 +206,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       id: 'battle_5won',
       category: 'battle',
       title: 'Battle Champion',
-      desc: 'Win 5 Online Battle duels',
+      desc: 'Win 5 Battle duels',
       icon: '🏅',
       unlocked: extraStats.battleWon >= 5,
     },
@@ -243,7 +243,9 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
               <span className="xp-rank-name">
                 <IconSparkles size={14} /> {level >= 10 ? 'Sudoku Overlord' : level >= 5 ? 'Grandmaster Scholar' : level >= 3 ? 'Adept Strategist' : 'Novice Solver'}
               </span>
-              <span className="xp-val">{xpInCurrentLevel} / 500 XP (Total {totalXp} XP)</span>
+              <span className="xp-val">
+                {xpInCurrentLevel} / 500 to next level • {totalXp} lifetime XP earned
+              </span>
             </div>
             <div className="xp-bar-track">
               <div className="xp-bar-fill" style={{ width: `${xpPct}%` }} />

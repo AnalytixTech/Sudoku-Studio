@@ -26,6 +26,8 @@ export interface KeypadProps {
   onRedo: () => void
   onAutoNotes: () => void
   onClearNotes: () => void
+  /** Withheld in Daily Challenge and Battle modes. */
+  autoNotesDisabled?: boolean
   disabled: boolean
 }
 
@@ -45,6 +47,7 @@ function Keypad({
   onRedo,
   onAutoNotes,
   onClearNotes,
+  autoNotesDisabled = false,
   disabled,
 }: KeypadProps) {
   const buttons = []
@@ -110,7 +113,16 @@ function Keypad({
       </div>
 
       <div className="keypad-subtools">
-        <button className="sub-btn" onClick={onAutoNotes} disabled={disabled} title="Fill all valid candidate notes">
+        <button
+          className="sub-btn"
+          onClick={onAutoNotes}
+          disabled={disabled || autoNotesDisabled}
+          title={
+            autoNotesDisabled
+              ? 'Not available in Daily Challenge or Battle mode'
+              : 'Fill all valid candidate notes'
+          }
+        >
           <IconSparkles size={14} /> Auto-Fill Notes
         </button>
         <button className="sub-btn" onClick={onClearNotes} disabled={disabled} title="Clear all pencil notes">

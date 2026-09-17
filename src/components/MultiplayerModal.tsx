@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { VARIANT_CONFIGS, type VariantId } from '../sudoku'
 import type { Difficulty } from '../lib/generator'
-import type { MultiplayerPlayer } from '../lib/multiplayer'
+import type { ConnectionState, MultiplayerPlayer } from '../lib/multiplayer'
 import { getUsername, setUsername } from '../lib/multiplayer'
 import CustomSelect from './CustomSelect'
 import { IconCheck, IconPlay, IconTrophy } from './Icons'
@@ -11,6 +11,7 @@ export interface MultiplayerModalProps {
   isHost: boolean
   localPlayer: MultiplayerPlayer
   remotePlayer: MultiplayerPlayer | null
+  connection: ConnectionState
   variantId: VariantId
   difficulty: Difficulty
   onVariantChange: (v: VariantId) => void
@@ -25,12 +26,13 @@ const VARIANT_OPTIONS = Object.values(VARIANT_CONFIGS).map((v) => ({
   label: v.name,
 }))
 
-const DIFFICULTY_OPTIONS = [
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string }[] = [
   { value: 'easy', label: 'easy' },
   { value: 'medium', label: 'medium' },
   { value: 'hard', label: 'hard' },
   { value: 'expert', label: 'expert' },
   { value: 'master', label: 'master' },
+  { value: 'grand master', label: 'grand master' },
 ]
 
 export default function MultiplayerModal({
@@ -38,6 +40,7 @@ export default function MultiplayerModal({
   isHost,
   localPlayer,
   remotePlayer,
+  connection,
   variantId,
   difficulty,
   onVariantChange,
@@ -62,7 +65,16 @@ export default function MultiplayerModal({
     setUsername(val)
   }
 
+  const online = connection === 'online'
   const bothReady = localPlayer.ready && remotePlayer && remotePlayer.ready
+  const canStart = Boolean(bothReady) && online
+
+  const CONNECTION_TEXT: Record<ConnectionState, string> = {
+    connecting: 'Connecting to battle server…',
+    online: 'Connected to battle server',
+    offline: 'Disconnected — retrying…',
+    'room-full': 'This room already has two players',
+  }
 
   return (
     <div className="overlay">
@@ -75,15 +87,22 @@ export default function MultiplayerModal({
           <button className="btn-close" onClick={onClose}>✕</button>
         </header>
 
+        <div className={`relay-status relay-${connection}`}>
+          <span className="relay-dot" />
+          {CONNECTION_TEXT[connection]}
+        </div>
+
         <div className="room-invite-box">
-          <span className="room-label">Room Invite Link:</span>
+          <span className="room-label">Room Link:</span>
           <div className="invite-input-row">
             <input type="text" readOnly value={inviteUrl} className="invite-input" />
             <button className="btn btn-primary" onClick={handleCopyLink}>
               {copied ? <IconCheck size={14} /> : 'Copy Link'}
             </button>
           </div>
-          <p className="invite-subtext">Share this link with a friend to join the same battle!</p>
+          <p className="invite-subtext">
+            Send this link to a friend on any device to join as your opponent.
+          </p>
         </div>
 
         <div className="player-profile-row">
@@ -146,6 +165,7 @@ export default function MultiplayerModal({
           <button
             className={`btn ${localPlayer.ready ? 'btn-warn' : 'btn-primary'} flex-btn`}
             onClick={onToggleReady}
+            disabled={!online}
           >
             {localPlayer.ready ? 'Unready' : 'I Am Ready!'}
           </button>
@@ -154,7 +174,8 @@ export default function MultiplayerModal({
             <button
               className="btn btn-solve flex-btn"
               onClick={onStartMatch}
-              disabled={!bothReady}
+              disabled={!canStart}
+              title={online ? undefined : 'Waiting for the battle server connection'}
             >
               <IconPlay size={16} /> Start Match!
             </button>

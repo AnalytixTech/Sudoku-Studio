@@ -5,7 +5,16 @@ import { SudokuSolver, type Step } from './lib/solver'
 import { markersFor } from './lib/markers'
 import { sound } from './lib/audio'
 import { triggerConfetti } from './lib/confetti'
-import { loadStats, recordGameStart, recordGameWin, loadUserXp, saveUserXp, type AllStats } from './lib/stats'
+import {
+  loadStats,
+  recordGameStart,
+  recordGameWin,
+  recordBattlePlayed,
+  recordBattleWin,
+  loadUserXp,
+  saveUserXp,
+  type AllStats,
+} from './lib/stats'
 import { generateDailyPuzzle, recordDailyCompletion, getTodayDateString } from './lib/daily'
 import {
   DEFAULT_CONFIG,
@@ -36,6 +45,8 @@ import {
   MultiplayerClient,
   getDeviceId,
   getUsername,
+  type ConnectionState,
+  type MatchPayload,
   type MultiplayerPlayer,
   type NetMessage,
 } from './lib/multiplayer'
@@ -95,6 +106,8 @@ export default function App() {
   const [board, setBoard] = useState<Grid>(emptyGrid(variantConfig))
   const [userNotes, setUserNotes] = useState<Record<string, Set<number>>>({})
   const [noteMode, setNoteMode] = useState(false)
+  // Whether any pencil note was used this game, for the "Pure Tactician" achievement.
+  const [usedNotes, setUsedNotes] = useState(false)
 
   // History stack for Undo / Redo
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -162,9 +175,14 @@ export default function App() {
   }))
 
   const [remotePlayer, setRemotePlayer] = useState<MultiplayerPlayer | null>(null)
+  const [connection, setConnection] = useState<ConnectionState>('offline')
   const netClientRef = useRef<MultiplayerClient | null>(null)
 
   const totalCells = variantConfig.size * variantConfig.size
+
+  // Daily Challenge and Battle are competitive modes: Auto-Solve and
+  // Auto-Fill Notes are withheld there. Hints stay available.
+  const helpersRestricted = isDailyChallenge || isBattleActive
   const { cand } = useMemo(() => computeCandidates(board, variantConfig), [board, variantConfig])
   const conflictSet = useMemo(
     () => (wrongCells.size ? wrongCells : findConflicts(board, variantConfig)),
@@ -172,7 +190,7 @@ export default function App() {
   )
 
   const currentStep = autoSolve.steps.length > 0 ? autoSolve.steps[autoSolve.index] : hintStep
-  const markers = useMemo(() => markersFor(currentStep), [currentStep])
+  const markers = useMemo(() => markersFor(currentStep, variantConfig), [currentStep, variantConfig])
 
   // Count placed digits for Keypad HUD
   const digitCounts = useMemo(() => {
@@ -209,6 +227,52 @@ export default function App() {
   }, [solved, screen, battleHidden])
 
   // ---------------- MULTIPLAYER LOGIC ----------------
+
+  // Starts the battle locally from the host's payload. The relay never echoes a
+  // message to its sender, so the host has to apply this itself rather than
+  // waiting to receive its own START_MATCH.
+  const applyMatchStart = useCallback((payload: MatchPayload) => {
+    const cfg = VARIANT_CONFIGS[payload.variantId] || DEFAULT_CONFIG
+    setVariantId(payload.variantId)
+    setVariantConfig(cfg)
+    setDifficulty(payload.difficulty)
+    setOriginal(payload.puzzle.map((row) => row.slice()))
+    setSolution(payload.solution.map((row) => row.slice()))
+    setBoard(payload.puzzle.map((row) => row.slice()))
+    setUserNotes({})
+    setUsedNotes(false)
+    setWrongCells(new Set())
+    setClearedRows(new Set())
+    setClearedCols(new Set())
+    setClearedBoxes(new Set())
+    setFeed([])
+    setActiveIndex(null)
+    setHintStep(null)
+    setAutoSolve({ steps: [], index: 0, playing: false })
+    setHistory([{ board: payload.puzzle.map((row) => row.slice()), notes: {} }])
+    setHistoryIdx(0)
+    setSelected(null)
+    setMistakes(0)
+    setSeconds(0)
+    setSolved(false)
+    setShowWinModal(false)
+    setShowMultiplayerModal(false)
+    setIsDailyChallenge(false)
+    setIsBattleActive(true)
+    setBattleHidden(true)
+    setShowBattleCountdown(true)
+    setScreen('game')
+    setLocalPlayer((p) => ({
+      ...p,
+      score: createInitialScore(cfg.size * cfg.size),
+      finished: false,
+    }))
+    setStatus({ type: 'info', text: 'Battle Started! Puzzle revealed after countdown.' })
+    // Counted here rather than on victory, so losing a match still counts as
+    // having competed in one.
+    recordBattlePlayed()
+  }, [])
+
   const handleNetMessage = useCallback(
     (msg: NetMessage) => {
       if (msg.type === 'JOIN_ROOM') {
@@ -232,30 +296,7 @@ export default function App() {
           setRemotePlayer((prev) => (prev ? { ...prev, ready: msg.ready } : null))
         }
       } else if (msg.type === 'START_MATCH') {
-        const { payload } = msg
-        setVariantId(payload.variantId)
-        setDifficulty(payload.difficulty)
-        const cfg = VARIANT_CONFIGS[payload.variantId] || DEFAULT_CONFIG
-        setOriginal(payload.puzzle.map((row) => row.slice()))
-        setSolution(payload.solution.map((row) => row.slice()))
-        setBoard(payload.puzzle.map((row) => row.slice()))
-        setUserNotes({})
-        setWrongCells(new Set())
-        setSelected(null)
-        setSeconds(0)
-        setSolved(false)
-        setShowWinModal(false)
-        setShowMultiplayerModal(false)
-        setIsBattleActive(true)
-        setBattleHidden(true)
-        setShowBattleCountdown(true)
-        setScreen('game')
-        setLocalPlayer((p) => ({
-          ...p,
-          score: createInitialScore(cfg.size * cfg.size),
-          finished: false,
-        }))
-        setStatus({ type: 'info', text: 'Battle Started! Puzzle revealed after countdown.' })
+        applyMatchStart(msg.payload)
       } else if (msg.type === 'PROGRESS_UPDATE') {
         if (msg.deviceId !== localDeviceId) {
           setRemotePlayer((prev) => (prev ? { ...prev, score: msg.score } : null))
@@ -266,8 +307,18 @@ export default function App() {
         }
       }
     },
-    [localDeviceId, localPlayer, isHost]
+    [localDeviceId, localPlayer, isHost, applyMatchStart]
   )
+
+  // MultiplayerClient.connect captures its listener once, so route messages
+  // through a ref to keep the handler from going stale as state changes.
+  const netHandlerRef = useRef(handleNetMessage)
+  useEffect(() => {
+    netHandlerRef.current = handleNetMessage
+  }, [handleNetMessage])
+
+  // Leave the room if the app unmounts mid-battle.
+  useEffect(() => () => netClientRef.current?.disconnect(), [])
 
   const joinBattleRoom = useCallback(
     (rId: string, asHost: boolean) => {
@@ -280,8 +331,13 @@ export default function App() {
       }
       const client = new MultiplayerClient()
       netClientRef.current = client
-      client.connect(rId, handleNetMessage)
+      client.connect(
+        rId,
+        (msg) => netHandlerRef.current(msg),
+        (state) => setConnection(state)
+      )
 
+      setRemotePlayer(null)
       const me: MultiplayerPlayer = {
         deviceId: localDeviceId,
         name: getUsername(),
@@ -293,7 +349,7 @@ export default function App() {
       setLocalPlayer(me)
       client.send({ type: 'JOIN_ROOM', roomId: rId, player: me })
     },
-    [localDeviceId, totalCells, handleNetMessage]
+    [localDeviceId, totalCells]
   )
 
   const createBattleRoom = useCallback(() => {
@@ -319,20 +375,11 @@ export default function App() {
   const startBattleMatch = useCallback(() => {
     if (!isHost || !roomId) return
     const { puzzle, solution } = generate(difficulty, variantConfig)
-    const payload = {
-      variantId,
-      difficulty,
-      puzzle,
-      solution,
-    }
-    if (netClientRef.current) {
-      netClientRef.current.send({
-        type: 'START_MATCH',
-        roomId,
-        payload,
-      })
-    }
-  }, [isHost, roomId, difficulty, variantConfig, variantId])
+    const payload: MatchPayload = { variantId, difficulty, puzzle, solution }
+    netClientRef.current?.send({ type: 'START_MATCH', roomId, payload })
+    // The host is not sent its own message back, so start locally too.
+    applyMatchStart(payload)
+  }, [isHost, roomId, difficulty, variantConfig, variantId, applyMatchStart])
 
   // Broadcast progress over P2P data channel
   const sendProgressUpdate = useCallback(
@@ -368,7 +415,15 @@ export default function App() {
       setStatus({ type: 'ok', text: `Puzzle Solved! Final Score: ${finalScoreState.score} pts` })
       sound.playWinFanfare()
       triggerConfetti()
-      setStats(recordGameWin(difficulty, seconds))
+
+      if (isBattleActive) {
+        // Battle results feed the battle achievements, not the single-player
+        // tiers. The match was already counted at start, so only a win is
+        // recorded here.
+        if (remotePlayer && finalScoreState.score > remotePlayer.score.score) recordBattleWin()
+      } else {
+        setStats(recordGameWin(difficulty, seconds, mistakes, usedNotes))
+      }
 
       if (isDailyChallenge) {
         const { newStreak, bonusXp } = recordDailyCompletion()
@@ -380,7 +435,22 @@ export default function App() {
         }
       }
     }
-  }, [board, conflictSet, solved, loading, difficulty, seconds, totalCells, localPlayer.score, sendProgressUpdate, isDailyChallenge])
+  }, [
+    board,
+    conflictSet,
+    solved,
+    loading,
+    difficulty,
+    seconds,
+    totalCells,
+    localPlayer.score,
+    sendProgressUpdate,
+    isDailyChallenge,
+    isBattleActive,
+    remotePlayer,
+    mistakes,
+    usedNotes,
+  ])
 
   // Helper to record history state
   const pushHistory = useCallback(
@@ -405,6 +475,9 @@ export default function App() {
       setSolved(false)
       setShowWinModal(false)
       setIsBattleActive(false)
+      // Leaving daily/battle mode must clear the flag, or its helper
+      // restrictions and completion credit would leak into later games.
+      setIsDailyChallenge(false)
       const baseCfg = VARIANT_CONFIGS[varId] || DEFAULT_CONFIG
       const cfg = getDynamicConfig(baseCfg)
       setVariantId(varId)
@@ -419,6 +492,7 @@ export default function App() {
       setWrongCells(new Set())
       setSelected(null)
       setUserNotes({})
+      setUsedNotes(false)
       setHistory([])
       setHistoryIdx(-1)
       setLocalPlayer((p) => ({ ...p, score: createInitialScore(cfg.size * cfg.size) }))
@@ -463,6 +537,7 @@ export default function App() {
     setSolution(sol.map((row) => row.slice()))
     setBoard(puzzle.map((row) => row.slice()))
     setUserNotes({})
+    setUsedNotes(false)
     setFeed([])
     setActiveIndex(null)
     setHintStep(null)
@@ -528,15 +603,18 @@ export default function App() {
 
       if (noteMode) {
         sound.playNoteToggle()
-        setUserNotes((prev) => {
-          const next = { ...prev }
-          const set = new Set(next[cellKey] || [])
-          if (set.has(v)) set.delete(v)
-          else set.add(v)
-          next[cellKey] = set
-          pushHistory(board, next)
-          return next
-        })
+        setUsedNotes(true)
+        // Built outside the updater: nesting pushHistory inside one makes the
+        // updater impure and double-pushes history under StrictMode.
+        const next = Object.fromEntries(
+          Object.entries(userNotes).map(([k, set]) => [k, new Set(set)])
+        )
+        const set = new Set(next[cellKey] || [])
+        if (set.has(v)) set.delete(v)
+        else set.add(v)
+        next[cellKey] = set
+        setUserNotes(next)
+        pushHistory(board, next)
         return
       }
 
@@ -668,7 +746,7 @@ export default function App() {
 
   // Auto-Fill Notes
   const handleAutoNotes = useCallback(() => {
-    if (autoSolve.playing || solved || battleHidden) return
+    if (autoSolve.playing || solved || battleHidden || helpersRestricted) return
     sound.playHint()
     const computed = computeCandidates(board, variantConfig).cand
     const nextNotes: Record<string, Set<number>> = {}
@@ -679,10 +757,11 @@ export default function App() {
         }
       }
     }
+    setUsedNotes(true)
     setUserNotes(nextNotes)
     pushHistory(board, nextNotes)
     setStatus({ type: 'info', text: 'All valid candidate notes populated.' })
-  }, [board, variantConfig, autoSolve.playing, solved, battleHidden, pushHistory])
+  }, [board, variantConfig, autoSolve.playing, solved, battleHidden, helpersRestricted, pushHistory])
 
   // Clear Notes
   const handleClearNotes = useCallback(() => {
@@ -699,6 +778,7 @@ export default function App() {
     const origClone = original.map((row) => row.slice())
     setBoard(origClone)
     setUserNotes({})
+    setUsedNotes(false)
     setFeed([])
     setActiveIndex(null)
     setHintStep(null)
@@ -709,8 +789,89 @@ export default function App() {
     setStatus({ type: 'info', text: 'Board reset to the original puzzle.' })
   }, [original, autoSolve.playing, battleHidden])
 
-  // Keyboard navigation
+  // Hint
+  const handleHint = useCallback(() => {
+    if (autoSolve.steps.length > 0 || loading || battleHidden) return
+    sound.playHint()
+    const res = analyzeHint(board, original, solution, variantConfig)
+    if (res.status === 'conflict' || res.status === 'wrong') {
+      sound.playError()
+      setWrongCells(new Set(res.cells.map(([r, c]) => `${r},${c}`)))
+      return setStatus({ type: 'warn', text: res.message })
+    }
+    if (res.status === 'complete') {
+      setSolved(true)
+      return setStatus({ type: 'ok', text: res.message })
+    }
+    if (res.status === 'unsolvable') {
+      sound.playError()
+      return setStatus({ type: 'warn', text: res.message })
+    }
+    const step = res.step
+    setHintStep(step)
+    const isDup = feed.length > 0 && feed[feed.length - 1]?.id === step.id
+    setFeed((f) => (isDup ? f : [...f, step]))
+    setActiveIndex(feed.length + (isDup ? -1 : 0))
+    setStatus({
+      type: 'ok',
+      text: `Next move (${step.technique}): ${
+        step.placement ? `place ${step.placement.value}` : 'see eliminations'
+      }`,
+    })
+  }, [board, original, solution, variantConfig, autoSolve.steps.length, loading, battleHidden, feed.length])
+
+  // Auto-solve replay
+  const startAutoSolve = useCallback(() => {
+    if (autoSolve.steps.length > 0 || loading || battleHidden || helpersRestricted) return
+    sound.playHint()
+    setLoading(true)
+    setStatus({ type: 'info', text: 'Planning logical solve steps…' })
+    setTimeout(() => {
+      const { steps } = new SudokuSolver(original, variantConfig).solve()
+      setHintStep(null)
+      setWrongCells(new Set())
+      setBoard(original.map((row) => row.slice()))
+      setFeed(steps)
+      setActiveIndex(0)
+      setAutoSolve({ steps, index: 0, playing: false })
+      setStatus({ type: 'ok', text: `${steps.length} moves planned. Click Next Step or Play Auto-Solve.` })
+      setLoading(false)
+    }, 60)
+  }, [original, variantConfig, autoSolve.steps.length, loading, battleHidden, helpersRestricted])
+
+  // XP Cost Request Wrappers
+  const requestAutoCandidates = useCallback(() => {
+    setPendingHelper({
+      title: 'Auto-Fill Pencil Notes',
+      cost: 30,
+      description: 'Populate all valid candidate notes across empty cells in the puzzle grid.',
+      action: handleAutoNotes,
+    })
+  }, [handleAutoNotes])
+
+  const requestHint = useCallback(() => {
+    setPendingHelper({
+      title: 'Get Logical Hint',
+      cost: 20,
+      description: 'Analyze board state and highlight the next logical move techniques.',
+      action: handleHint,
+    })
+  }, [handleHint])
+
+  const requestAutoSolve = useCallback(() => {
+    setPendingHelper({
+      title: 'Auto-Solve Puzzle',
+      cost: 50,
+      description: 'Watch the step-by-step solver deduce and solve the puzzle step by step.',
+      action: startAutoSolve,
+    })
+  }, [startAutoSolve])
+
+  // Keyboard navigation. Declared after the hint helpers so the listener binds
+  // the current handlers rather than a stale first-render closure.
   useEffect(() => {
+    if (screen !== 'game') return
+
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
@@ -750,90 +911,22 @@ export default function App() {
       const digit = Number(e.key)
       if (digit >= 1 && digit <= variantConfig.size) placeDigit(digit)
       else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') eraseCell()
-      else if (e.key.toLowerCase() === 'h') handleHint()
+      // Route through the XP prompt so the shortcut costs the same as the button.
+      else if (e.key.toLowerCase() === 'h') requestHint()
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selected, variantConfig.size, placeDigit, eraseCell, handleUndo, handleRedo])
-
-  // Hint
-  const handleHint = useCallback(() => {
-    if (autoSolve.steps.length > 0 || loading || battleHidden) return
-    sound.playHint()
-    const res = analyzeHint(board, original, solution, variantConfig)
-    if (res.status === 'conflict' || res.status === 'wrong') {
-      sound.playError()
-      setWrongCells(new Set(res.cells.map(([r, c]) => `${r},${c}`)))
-      return setStatus({ type: 'warn', text: res.message })
-    }
-    if (res.status === 'complete') {
-      setSolved(true)
-      return setStatus({ type: 'ok', text: res.message })
-    }
-    if (res.status === 'unsolvable') {
-      sound.playError()
-      return setStatus({ type: 'warn', text: res.message })
-    }
-    const step = res.step
-    setHintStep(step)
-    const isDup = feed.length > 0 && feed[feed.length - 1]?.id === step.id
-    setFeed((f) => (isDup ? f : [...f, step]))
-    setActiveIndex(feed.length + (isDup ? -1 : 0))
-    setStatus({
-      type: 'ok',
-      text: `Next move (${step.technique}): ${
-        step.placement ? `place ${step.placement.value}` : 'see eliminations'
-      }`,
-    })
-  }, [board, original, solution, variantConfig, autoSolve.steps.length, loading, battleHidden, feed.length])
-
-  // Auto-solve replay
-  const startAutoSolve = useCallback(() => {
-    if (autoSolve.steps.length > 0 || loading || battleHidden) return
-    sound.playHint()
-    setLoading(true)
-    setStatus({ type: 'info', text: 'Planning logical solve steps…' })
-    setTimeout(() => {
-      const { steps } = new SudokuSolver(original, variantConfig).solve()
-      setHintStep(null)
-      setWrongCells(new Set())
-      setBoard(original.map((row) => row.slice()))
-      setFeed(steps)
-      setActiveIndex(0)
-      setAutoSolve({ steps, index: 0, playing: false })
-      setStatus({ type: 'ok', text: `${steps.length} moves planned. Click Next Step or Play Auto-Solve.` })
-      setLoading(false)
-    }, 60)
-  }, [original, variantConfig, autoSolve.steps.length, loading, battleHidden])
-
-  // XP Cost Request Wrappers
-  const requestAutoCandidates = useCallback(() => {
-    setPendingHelper({
-      title: 'Auto-Fill Pencil Notes',
-      cost: 30,
-      description: 'Populate all valid candidate notes across empty cells in the puzzle grid.',
-      action: handleAutoNotes,
-    })
-  }, [handleAutoNotes])
-
-  const requestHint = useCallback(() => {
-    setPendingHelper({
-      title: 'Get Logical Hint',
-      cost: 20,
-      description: 'Analyze board state and highlight the next logical move techniques.',
-      action: handleHint,
-    })
-  }, [handleHint])
-
-  const requestAutoSolve = useCallback(() => {
-    setPendingHelper({
-      title: 'Auto-Solve Puzzle',
-      cost: 50,
-      description: 'Watch the step-by-step solver deduce and solve the puzzle step by step.',
-      action: startAutoSolve,
-    })
-  }, [startAutoSolve])
+  }, [
+    screen,
+    selected,
+    variantConfig.size,
+    placeDigit,
+    eraseCell,
+    handleUndo,
+    handleRedo,
+    requestHint,
+  ])
 
   const confirmHelper = useCallback(() => {
     if (!pendingHelper) return
@@ -938,6 +1031,7 @@ export default function App() {
             isHost={isHost}
             localPlayer={localPlayer}
             remotePlayer={remotePlayer}
+            connection={connection}
             variantId={variantId}
             difficulty={difficulty}
             onVariantChange={setVariantId}
@@ -1085,13 +1179,15 @@ export default function App() {
             <IconTrophy /> 1v1 Battle Lobby
           </button>
         )}
-        <button
-          className="btn btn-solve"
-          onClick={requestAutoSolve}
-          disabled={loading || autoSolve.steps.length > 0 || solved || isBattleActive}
-        >
-          <IconPlay /> Auto-Solve
-        </button>
+        {!helpersRestricted && (
+          <button
+            className="btn btn-solve"
+            onClick={requestAutoSolve}
+            disabled={loading || autoSolve.steps.length > 0 || solved}
+          >
+            <IconPlay /> Auto-Solve
+          </button>
+        )}
         {solved && !showWinModal && (
           <button className="btn btn-primary" onClick={() => setShowWinModal(true)}>
             <IconTrophy /> View Results
@@ -1154,6 +1250,7 @@ export default function App() {
             onRedo={handleRedo}
             onAutoNotes={requestAutoCandidates}
             onClearNotes={handleClearNotes}
+            autoNotesDisabled={helpersRestricted}
             disabled={playing || solved || battleHidden}
           />
         </section>
@@ -1180,10 +1277,14 @@ export default function App() {
                   ? autoSolve.index < autoSolve.steps.length - 1
                   : activeIndex !== null && activeIndex < feed.length - 1
               }
-              onTogglePlay={() => {
-                if (autoSolve.steps.length === 0) startAutoSolve()
-                else setAutoSolve((as) => ({ ...as, playing: !as.playing }))
-              }}
+              onTogglePlay={
+                helpersRestricted && autoSolve.steps.length === 0
+                  ? undefined
+                  : () => {
+                      if (autoSolve.steps.length === 0) startAutoSolve()
+                      else setAutoSolve((as) => ({ ...as, playing: !as.playing }))
+                    }
+              }
               onPrevStep={prevStepAutoSolve}
               onNextStep={stepAutoSolve}
               onFocus={focusStep}
@@ -1200,6 +1301,7 @@ export default function App() {
           isHost={isHost}
           localPlayer={localPlayer}
           remotePlayer={remotePlayer}
+          connection={connection}
           variantId={variantId}
           difficulty={difficulty}
           onVariantChange={(v) => {
