@@ -60,20 +60,23 @@ export type ConnectionState = 'connecting' | 'online' | 'offline' | 'room-full'
  * assume the relay is reverse-proxied at /ws on the app's own origin, and fall
  * back to the local relay during `npm run dev`.
  */
-export function resolveRelayUrl(roomId: string): string {
+export function resolveRelayUrl(roomId: string, deviceId = getDeviceId()): string {
   const configured = import.meta.env.VITE_WS_URL as string | undefined
   const base = configured
     ? configured.replace(/\/$/, '')
     : import.meta.env.DEV
       ? 'ws://localhost:8787'
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
-  return `${base}?room=${encodeURIComponent(roomId)}`
+  // The device id lets the relay treat a reconnect as taking over the same
+  // slot rather than counting it as a third player.
+  return `${base}?room=${encodeURIComponent(roomId)}&device=${encodeURIComponent(deviceId)}`
 }
 
 const RECONNECT_BASE_MS = 600
 const RECONNECT_MAX_MS = 10_000
-/** Must match CLOSE_ROOM_FULL in server/index.js. */
+/** Must match the close codes in server/index.js. */
 const CLOSE_ROOM_FULL = 4409
+const CLOSE_SUPERSEDED = 4410
 
 /**
  * Battle transport over a WebSocket relay (see server/index.js).
@@ -119,7 +122,7 @@ export class MultiplayerClient {
 
     let socket: WebSocket
     try {
-      socket = new WebSocket(resolveRelayUrl(this.roomId))
+      socket = new WebSocket(resolveRelayUrl(this.roomId, this.deviceId))
     } catch {
       this.scheduleReconnect()
       return
@@ -158,6 +161,12 @@ export class MultiplayerClient {
       // The relay refused a third player; retrying cannot help.
       if (evt.code === CLOSE_ROOM_FULL) {
         this.setState('room-full')
+        return
+      }
+      // This device opened a newer connection elsewhere (another tab, or a
+      // remount). Reconnecting would just evict the live one, so stand down.
+      if (evt.code === CLOSE_SUPERSEDED) {
+        this.setState('offline')
         return
       }
       this.scheduleReconnect()

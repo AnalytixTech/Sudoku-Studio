@@ -238,3 +238,246 @@ export function IconChevronDown({ className = '', size = 16, color = 'currentCol
     </svg>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Replacements for the emoji the UI used to render.
+//
+// Emoji rasterise differently on every platform, and some do not render at all
+// on older Android and Linux builds, so the same screen looked inconsistent
+// across devices. These follow the same 24x24 stroke grid as the icons above
+// and inherit currentColor, so they pick up whichever theme is equipped.
+// ---------------------------------------------------------------------------
+
+export function IconCoin({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v9" />
+      <path d="M14.5 9.75h-3.25a1.75 1.75 0 0 0 0 3.5h1.5a1.75 1.75 0 0 1 0 3.5H9.5" />
+    </svg>
+  )
+}
+
+export function IconCalendar({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 11h18" />
+    </svg>
+  )
+}
+
+export function IconCalendarDays({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 11h18" />
+      <path d="M8 15h.01M12 15h.01M16 15h.01" />
+    </svg>
+  )
+}
+
+export function IconFlame({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 2.5c.9 3.2 3.3 4.5 3.3 7.7a3.3 3.3 0 0 1-6.6 0c0-1 .4-1.9 1-2.5.2.9.8 1.3 1.3 1.3-.6-2.2-.4-4.7 1-6.5z" />
+      <path d="M12 21.5a6.2 6.2 0 0 0 6.2-6.2c0-1.7-.6-3.1-1.6-4.3" />
+      <path d="M12 21.5a6.2 6.2 0 0 1-6.2-6.2c0-1.7.6-3.1 1.6-4.3" />
+    </svg>
+  )
+}
+
+export function IconPalette({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 21a9 9 0 1 1 9-9c0 1.7-1.3 3-3 3h-1.5a2 2 0 0 0-1.4 3.4c.3.3.4.7.4 1.1 0 .8-.7 1.5-1.5 1.5z" />
+      <circle cx="7.5" cy="12.2" r="1.1" />
+      <circle cx="10" cy="7.8" r="1.1" />
+      <circle cx="15" cy="8.4" r="1.1" />
+    </svg>
+  )
+}
+
+export function IconUser({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  )
+}
+
+export function IconLock({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <rect x="4" y="10.5" width="16" height="10.5" rx="2" />
+      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+    </svg>
+  )
+}
+
+export function IconShield({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 2.5l8 3v6.2c0 4.9-3.4 8.8-8 10.3-4.6-1.5-8-5.4-8-10.3V5.5z" />
+    </svg>
+  )
+}
+
+export function IconSwords({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M14.8 17.3L3 5.5V3h2.5l11.8 11.8" />
+      <path d="M13 19l6-6M16 16l4 4M19 21l2-2" />
+      <path d="M9.2 17.3L21 5.5V3h-2.5L6.7 14.8" />
+      <path d="M11 19l-6-6M8 16l-4 4M5 21l-2-2" />
+    </svg>
+  )
+}
+
+export function IconWarning({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M10.3 3.9L1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </svg>
+  )
+}
+
+export function IconNumbers({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
+    </svg>
+  )
+}
+
+export function IconConfetti({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M3.5 20.5l5-14 10 10z" />
+      <path d="M14 3.5v2M19 6l1.5-1.5M17.5 11h2" />
+      <path d="M12.5 7.8a2.5 2.5 0 0 1 3.6-2.1" />
+    </svg>
+  )
+}
+
+export function IconStar({
+  className = '',
+  size = 16,
+  color = 'currentColor',
+  style,
+  filled = false,
+}: IconProps & { filled?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.8 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z" />
+    </svg>
+  )
+}
+
+export function IconSprout({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 21v-8" />
+      <path d="M12 13C12 9.5 9.5 7 6 7c0 3.5 2.5 6 6 6z" />
+      <path d="M12 13c0-3 2.2-5.5 5.5-5.5C17.5 10.5 15 13 12 13z" />
+    </svg>
+  )
+}
+
+export function IconPuzzle({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <path d="M12 3v18M3 12h18" />
+      <rect x="5.4" y="5.4" width="4.2" height="4.2" rx="1" fill={color} stroke="none" />
+    </svg>
+  )
+}
+
+export function IconGraduation({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M2 9l10-4.5L22 9l-10 4.5z" />
+      <path d="M6 11.2V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.8" />
+      <path d="M22 9v5" />
+    </svg>
+  )
+}
+
+export function IconBrain({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 5.5a3 3 0 0 0-5.7-1.3A3 3 0 0 0 3.5 9a3 3 0 0 0 .8 4.6A3 3 0 0 0 7 19a3 3 0 0 0 5-1.3z" />
+      <path d="M12 5.5a3 3 0 0 1 5.7-1.3A3 3 0 0 1 20.5 9a3 3 0 0 1-.8 4.6A3 3 0 0 1 17 19a3 3 0 0 1-5-1.3z" />
+      <path d="M12 5.5v12.2" />
+    </svg>
+  )
+}
+
+export function IconBolt({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M13.5 2L4 13.5h6.5L10 22l9.5-11.5H13z" />
+    </svg>
+  )
+}
+
+export function IconRocket({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M12 2.5c3 2 4.8 5.4 4.8 9.2L15 16H9l-1.8-4.3C7.2 7.9 9 4.5 12 2.5z" />
+      <circle cx="12" cy="10" r="1.8" />
+      <path d="M9 16l-2 2.5 2.5-.6M15 16l2 2.5-2.5-.6" />
+      <path d="M10.6 19.5c.5 1.4 1.4 2 1.4 2s.9-.6 1.4-2" />
+    </svg>
+  )
+}
+
+export function IconPencilOff({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M16.5 3.5l4 4L10 18l-5 1.5L6.5 14z" />
+      <path d="M3 3l18 18" />
+    </svg>
+  )
+}
+
+export function IconCrown({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M3 17.5l1.8-10L10 12.5l2-8 2 8 5.2-5L21 17.5z" />
+      <path d="M3.5 21h17" />
+    </svg>
+  )
+}
+
+export function IconGem({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <path d="M6 3h12l3.5 6L12 21 2.5 9z" />
+      <path d="M2.5 9h19M9 3l-1.5 6L12 21M15 3l1.5 6L12 21" />
+    </svg>
+  )
+}
+
+export function IconMedal({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <circle cx="12" cy="15" r="6" />
+      <path d="M8.5 9.6L6 2.5h12L15.5 9.6" />
+      <path d="M12 12.6l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z" />
+    </svg>
+  )
+}
+
+export function IconGamepad({ className = '', size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+      <rect x="2" y="7" width="20" height="11" rx="4" />
+      <path d="M7 11v3M5.5 12.5h3" />
+      <path d="M16.5 11.5h.01M18.5 14h.01" />
+    </svg>
+  )
+}

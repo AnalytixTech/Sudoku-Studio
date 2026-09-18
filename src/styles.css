@@ -23,6 +23,22 @@
   --ok: #10b981;
   --warn: #f59e0b;
   --note-bg: rgba(99, 102, 241, 0.15);
+
+  /* Board surfaces. Defaults are the original dark values, so every dark theme
+     is unchanged; the light theme overrides this block. */
+  --board-bg: #080c14;
+  --cell-bg: #0e1524;
+  --cell-border: #1c2842;
+  --cell-hover: #18233c;
+  --cell-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+  --given: #94a3b8;
+  --pip: #8a97bd;
+  /* Text drawn on top of an accent-filled surface. */
+  --on-accent: #0b0f19;
+  --scrim: rgba(0, 0, 0, 0.72);
+  --crop-bg: #ffffff;
+  --review-cell-bg: #0f172a;
+  --review-cell-fg: #f8fafc;
 }
 
 /* ---------- Cyberpunk Neon Theme (Selectable Option) ---------- */
@@ -271,7 +287,7 @@ body {
   grid-template-columns: repeat(9, 1fr);
   border: 3px solid var(--line-strong);
   border-radius: 6px;
-  background: #080c14;
+  background: var(--board-bg);
   overflow: hidden;
 }
 .board-row { display: contents; }
@@ -279,8 +295,8 @@ body {
 .cell {
   position: relative;
   aspect-ratio: 1;
-  background: #0e1524;
-  border: 1px solid #1c2842;
+  background: var(--cell-bg);
+  border: 1px solid var(--cell-border);
   color: var(--text);
   font-size: clamp(18px, 3.8vmin, 28px);
   font-weight: 700;
@@ -289,11 +305,11 @@ body {
   cursor: pointer;
   padding: 0;
   user-select: none;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+  box-shadow: var(--cell-shadow);
   transition: background 0.12s, box-shadow 0.12s, transform 0.1s;
 }
 .cell:hover {
-  background: #18233c;
+  background: var(--cell-hover);
   transform: translateY(-1px) scale(1.02);
   z-index: 2;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(255, 255, 255, 0.1);
@@ -314,7 +330,7 @@ body {
   animation: popIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .num.given {
-  color: #94a3b8;
+  color: var(--given);
   font-weight: 900;
   text-shadow: 0 0 6px rgba(148, 163, 184, 0.2);
 }
@@ -352,7 +368,7 @@ body {
 
 .cell-selected {
   background: var(--accent) !important;
-  color: #0b0f19 !important;
+  color: var(--on-accent) !important;
   box-shadow: 0 0 18px var(--accent-glow) inset, 0 0 16px var(--accent);
   z-index: 4;
 }
@@ -391,7 +407,7 @@ body {
 }
 .pip {
   display: grid; place-items: center;
-  color: #566891;
+  color: var(--pip);
   animation: fadeIn 0.15s ease;
 }
 .pip-off { visibility: hidden; }
@@ -519,8 +535,8 @@ body {
 }
 .key-btn.active-note {
   background: var(--accent);
-  color: #000;
-  border-color: #fff;
+  color: var(--on-accent);
+  border-color: var(--text);
   box-shadow: 0 0 12px var(--accent-glow);
 }
 
@@ -704,7 +720,7 @@ body {
 .speed-pill:hover { color: var(--text); }
 .speed-pill-active {
   background: var(--accent);
-  color: #0b0f19;
+  color: var(--on-accent);
   box-shadow: 0 0 8px var(--accent-glow);
 }
 .explain-ctrl-btn {
@@ -732,16 +748,16 @@ body {
 }
 .btn-play-ctrl {
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .btn-play-ctrl:hover:not(:disabled) {
-  background: #fff;
-  color: #000;
+  background: var(--text);
+  color: var(--bg);
 }
 .btn-play-active {
   background: var(--warn);
-  color: #000;
+  color: var(--on-accent);
   border-color: var(--warn);
 }
 .now-explaining { margin: 0 0 12px; font-size: 12.5px; color: var(--text-dim); }
@@ -951,7 +967,7 @@ body {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
-  background: #000;
+  background: var(--scrim);
   display: flex;
   justify-content: center;
 }
@@ -1160,7 +1176,7 @@ body {
   aspect-ratio: 1;
   border: 3px solid var(--accent);
   border-radius: 8px;
-  background: #080c14;
+  background: var(--board-bg);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
@@ -1198,8 +1214,8 @@ body {
   width: 100%;
   height: 100%;
   aspect-ratio: 1;
-  background: #0f172a;
-  color: #f8fafc;
+  background: var(--review-cell-bg);
+  color: var(--review-cell-fg);
   font-size: clamp(15px, 2.2vw, 22px);
   font-weight: 800;
   text-align: center;
@@ -1271,7 +1287,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: #ffffff;
+  background: var(--crop-bg);
   padding: 12px;
   border-radius: 12px;
   border: 1px solid var(--line-strong);
@@ -2385,6 +2401,565 @@ body {
 .sw-btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0b0f19;
+  color: var(--on-accent);
   font-weight: 800;
+}
+
+/* ---------- Wallet pills (coins + level) ---------- */
+.lvl-top-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  font-family: 'Orbitron', monospace;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+}
+.menu-wallet, .menu-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.menu-level { font-family: 'Orbitron', monospace; letter-spacing: .04em; }
+
+/* ---------- Continue / resume card ---------- */
+.resume-card { position: relative; }
+.tile-resume {
+  width: 100%;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow), 0 8px 26px rgba(4, 8, 20, .35);
+}
+.icon-resume { background: linear-gradient(135deg, var(--accent), #1b3f86); color: #fff; }
+.resume-progress {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--note-bg);
+  border: 1px solid var(--accent);
+}
+.resume-discard {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.resume-discard:hover { color: var(--conflict); border-color: var(--conflict); }
+
+/* ---------- Game over ---------- */
+.gameover-card { max-width: 440px; text-align: center; }
+.gameover-badge {
+  width: 58px; height: 58px;
+  margin: 0 auto 12px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 28px; font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, var(--conflict), #7f1d32);
+  box-shadow: 0 0 24px rgba(244, 63, 94, .35);
+}
+.gameover-sub { color: var(--text-dim); margin: 0 0 16px; font-size: 14px; }
+.gameover-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.gameover-secondary { display: flex; gap: 10px; }
+.gameover-hint { margin: 0; font-size: 12px; color: var(--warn); }
+
+/* ---------- Reward breakdown on the results screen ---------- */
+.reward-panel {
+  margin: 16px 0 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.reward-totals { display: flex; gap: 14px; align-items: baseline; }
+.reward-coins, .reward-xp {
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: 19px;
+}
+.reward-coins { color: var(--warn); }
+.reward-xp { color: var(--accent); }
+.reward-lines {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.reward-level { margin-top: 12px; font-size: 11px; color: var(--text-dim); }
+.reward-level-track {
+  margin-top: 5px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.reward-level-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #38bdf8);
+  transition: width .4s ease;
+}
+
+/* ==========================================================================
+   Unlockable cosmetics — themes & digit styles
+   Each theme redefines the same variable contract as the built-in three.
+   ========================================================================== */
+
+/* ---------- Oceanic ---------- */
+body.theme-oceanic {
+  --bg: #06141d;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #0e3350 0%, #06141d 80%);
+  --bg-soft: #0b2131;
+  --panel: rgba(13, 40, 58, 0.75);
+  --panel-solid: #0d2839;
+  --panel-2: #123449;
+  --line: #1d4e6b;
+  --line-strong: #3b7fa3;
+  --text: #eaf6fd;
+  --text-dim: #91b5cb;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.35);
+  --row: rgba(56, 189, 248, 0.2);
+  --col: rgba(45, 212, 191, 0.16);
+  --box: rgba(250, 204, 21, 0.14);
+  --conflict: #fb7185;
+  --ok: #2dd4bf;
+  --warn: #fbbf24;
+  --note-bg: rgba(56, 189, 248, 0.14);
+}
+
+/* ---------- Sakura Dusk ---------- */
+body.theme-sakura {
+  --bg: #150b14;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #3a1b35 0%, #150b14 80%);
+  --bg-soft: #24132180;
+  --panel: rgba(46, 24, 43, 0.78);
+  --panel-solid: #2b1728;
+  --panel-2: #3b1f37;
+  --line: #56304f;
+  --line-strong: #8c5480;
+  --text: #fdeef7;
+  --text-dim: #c79fba;
+  --accent: #f472b6;
+  --accent-glow: rgba(244, 114, 182, 0.35);
+  --row: rgba(244, 114, 182, 0.2);
+  --col: rgba(167, 139, 250, 0.18);
+  --box: rgba(251, 191, 36, 0.14);
+  --conflict: #fb7185;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --note-bg: rgba(244, 114, 182, 0.15);
+}
+
+/* ---------- Amber Forge ---------- */
+body.theme-amber {
+  --bg: #140d06;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #3b2410 0%, #140d06 80%);
+  --bg-soft: #21150a;
+  --panel: rgba(48, 30, 14, 0.78);
+  --panel-solid: #2c1c0d;
+  --panel-2: #3d2510;
+  --line: #5c3a18;
+  --line-strong: #96622c;
+  --text: #fdf3e6;
+  --text-dim: #c9a882;
+  --accent: #f59e0b;
+  --accent-glow: rgba(245, 158, 11, 0.35);
+  --row: rgba(245, 158, 11, 0.18);
+  --col: rgba(239, 68, 68, 0.14);
+  --box: rgba(250, 204, 21, 0.16);
+  --conflict: #ef4444;
+  --ok: #84cc16;
+  --warn: #fbbf24;
+  --note-bg: rgba(245, 158, 11, 0.15);
+}
+
+/* ---------- Crimson Pact ---------- */
+body.theme-crimson {
+  --bg: #120709;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #3a1018 0%, #120709 80%);
+  --bg-soft: #1e0d11;
+  --panel: rgba(46, 16, 22, 0.78);
+  --panel-solid: #2a1016;
+  --panel-2: #3b1220;
+  --line: #5a1e2b;
+  --line-strong: #954050;
+  --text: #ffeef1;
+  --text-dim: #caa0a8;
+  --accent: #fb7185;
+  --accent-glow: rgba(251, 113, 133, 0.35);
+  --row: rgba(251, 113, 133, 0.2);
+  --col: rgba(248, 113, 113, 0.15);
+  --box: rgba(251, 191, 36, 0.14);
+  --conflict: #f87171;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --note-bg: rgba(251, 113, 133, 0.15);
+}
+
+/* ---------- Monochrome ---------- */
+body.theme-slate {
+  --bg: #0e1013;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #23272e 0%, #0e1013 80%);
+  --bg-soft: #16191e;
+  --panel: rgba(31, 35, 41, 0.78);
+  --panel-solid: #1c2025;
+  --panel-2: #2a2f37;
+  --line: #3a414b;
+  --line-strong: #646e7c;
+  --text: #f1f5f9;
+  --text-dim: #9aa4b2;
+  --accent: #cbd5e1;
+  --accent-glow: rgba(203, 213, 225, 0.28);
+  --row: rgba(203, 213, 225, 0.14);
+  --col: rgba(148, 163, 184, 0.12);
+  --box: rgba(226, 232, 240, 0.1);
+  --conflict: #f87171;
+  --ok: #94a3b8;
+  --warn: #cbd5e1;
+  --note-bg: rgba(203, 213, 225, 0.12);
+}
+
+/* ---------- Royal Gold ---------- */
+body.theme-royal {
+  --bg: #0f0a1c;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #2c1c5c 0%, #0f0a1c 80%);
+  --bg-soft: #1a1133;
+  --panel: rgba(38, 25, 72, 0.78);
+  --panel-solid: #221643;
+  --panel-2: #2e1d54;
+  --line: #452d7a;
+  --line-strong: #7a5bc0;
+  --text: #f6f0ff;
+  --text-dim: #b5a3dd;
+  --accent: #fbbf24;
+  --accent-glow: rgba(251, 191, 36, 0.32);
+  --row: rgba(167, 139, 250, 0.22);
+  --col: rgba(251, 191, 36, 0.16);
+  --box: rgba(244, 114, 182, 0.14);
+  --conflict: #fb7185;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --note-bg: rgba(251, 191, 36, 0.14);
+}
+
+/* ---------- Terminal ---------- */
+body.theme-matrix {
+  --bg: #000000;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #06240f 0%, #000000 80%);
+  --bg-soft: #050d07;
+  --panel: rgba(8, 28, 15, 0.82);
+  --panel-solid: #071c0e;
+  --panel-2: #0d2b16;
+  --line: #14532d;
+  --line-strong: #2f8f4e;
+  --text: #dcfce7;
+  --text-dim: #6ba97f;
+  --accent: #22c55e;
+  --accent-glow: rgba(34, 197, 94, 0.4);
+  --row: rgba(34, 197, 94, 0.18);
+  --col: rgba(74, 222, 128, 0.14);
+  --box: rgba(163, 230, 53, 0.12);
+  --conflict: #ef4444;
+  --ok: #22c55e;
+  --warn: #a3e635;
+  --note-bg: rgba(34, 197, 94, 0.14);
+}
+
+/* ---------- Digit styles ----------
+   Applied to board numerals, candidate pips and the keypad so the whole
+   numeric surface stays consistent. Extras use system stacks so no additional
+   web font has to load (and they still work offline). */
+body.digits-rounded .num,
+body.digits-rounded .pip,
+body.digits-rounded .key-val {
+  font-family: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  font-weight: 700;
+}
+body.digits-mono .num,
+body.digits-mono .pip,
+body.digits-mono .key-val {
+  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  font-weight: 700;
+}
+body.digits-serif .num,
+body.digits-serif .pip,
+body.digits-serif .key-val {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+}
+
+/* ---------- Cosmetics shop ---------- */
+.shop-card {
+  max-width: 880px;
+  width: 92vw;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.shop-head-right { display: flex; align-items: center; gap: 10px; }
+.shop-balance {
+  font-family: 'Orbitron', monospace;
+  font-weight: 800;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--warn);
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+}
+.shop-flash {
+  margin: 10px 0 0;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--note-bg);
+  border: 1px solid var(--accent);
+}
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.shop-item {
+  display: flex;
+  flex-direction: column;
+  border-radius: 13px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  transition: border-color .15s ease, transform .15s ease;
+}
+.shop-item:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+.shop-equipped { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow); }
+.shop-locked { opacity: .72; }
+.shop-swatch { display: flex; height: 52px; }
+.shop-swatch span { flex: 1; }
+.shop-item-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+.shop-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.shop-item-head h4 { margin: 0; font-size: 14px; font-weight: 800; color: var(--text); }
+.shop-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.shop-tag-on { color: var(--accent); border-color: var(--accent); background: var(--note-bg); }
+.shop-blurb { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-dim); flex: 1; }
+.shop-action { width: 100%; justify-content: center; margin-top: 2px; }
+.shop-footer {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+@media (max-width: 580px) {
+  .shop-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .shop-swatch { height: 40px; }
+  .shop-item-head h4 { font-size: 13px; }
+  .shop-blurb { display: none; }
+}
+
+/* ---------- Daylight (light theme) ----------
+   The only theme that inverts the surface contract, so it overrides the board
+   tokens as well as the palette. */
+body.theme-daylight {
+  --bg: #f4f6fb;
+  --bg-gradient: radial-gradient(1200px 700px at 50% -10%, #ffffff 0%, #e8edf7 80%);
+  --bg-soft: #ffffff;
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-solid: #ffffff;
+  --panel-2: #eef1f8;
+  --line: #d3dae8;
+  --line-strong: #94a3c4;
+  --text: #16203a;
+  --text-dim: #5b6784;
+  --accent: #4f46e5;
+  --accent-glow: rgba(79, 70, 229, 0.28);
+  --row: rgba(79, 70, 229, 0.11);
+  --col: rgba(14, 165, 233, 0.11);
+  --box: rgba(245, 158, 11, 0.14);
+  --conflict: #dc2626;
+  --ok: #059669;
+  --warn: #b45309;
+  --note-bg: rgba(79, 70, 229, 0.1);
+
+  --board-bg: #c2cade;
+  --cell-bg: #ffffff;
+  --cell-border: #dfe4ef;
+  --cell-hover: #eef2fb;
+  /* A light cell needs a soft lift, not the dark inset the dark themes use. */
+  --cell-shadow: inset 0 1px 2px rgba(22, 32, 58, 0.06);
+  --given: #3d4a6b;
+  --pip: #66708a;
+  --on-accent: #ffffff;
+  --scrim: rgba(22, 32, 58, 0.55);
+  --crop-bg: #ffffff;
+  --review-cell-bg: #ffffff;
+  --review-cell-fg: #16203a;
+}
+
+/* The keypad and toolbar lean on dark-only gradients; soften them on light. */
+body.theme-daylight .key {
+  background: linear-gradient(180deg, #ffffff, #eef1f8);
+  color: var(--text);
+}
+body.theme-daylight .key-hot {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  border-color: #4338ca;
+  color: #fff;
+}
+body.theme-daylight .key-complete {
+  background: #e6eaf3;
+  opacity: 0.5;
+}
+body.theme-daylight .logo-cell {
+  background: linear-gradient(135deg, #6366f1, #3730a3);
+  border-color: #4338ca;
+}
+body.theme-daylight .num.user-num { color: var(--accent); }
+body.theme-daylight .cell:hover {
+  box-shadow: 0 4px 12px rgba(22, 32, 58, 0.12), inset 0 0 8px rgba(79, 70, 229, 0.06);
+}
+/* Technique badges are dark chips by default; lift them onto a light surface. */
+body.theme-daylight .badge {
+  filter: brightness(1.55) saturate(0.85);
+}
+
+/* ---------- Account modal ---------- */
+.account-card { max-width: 470px; }
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.account-label { color: var(--text-dim); }
+.sync-ok { color: var(--ok); display: inline-flex; align-items: center; gap: 5px; }
+.sync-pending { color: var(--warn); }
+.account-note {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.account-fineprint { font-size: 11.5px; opacity: 0.85; }
+.google-btn-wrap { display: flex; justify-content: center; margin: 18px 0 6px; min-height: 44px; }
+.account-dev {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line-strong);
+}
+.dev-note { margin: 0 0 9px; font-size: 12px; color: var(--text-dim); }
+.account-danger {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.link-danger {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--conflict);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.danger-warn {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--conflict);
+}
+.btn-danger {
+  background: var(--conflict);
+  border-color: var(--conflict);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Inline icon + value pairs (coin counts, streaks, ready badges). */
+.inline-coin,
+.menu-wallet,
+.shop-balance,
+.xp-top-pill,
+.reward-coins,
+.achieve-check,
+.achieve-lock-icon,
+.tile-sub-row,
+.step-stars,
+.ready-status,
+.daily-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.step-stars { gap: 2px; }
+.achieve-icon {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.achieve-locked .achieve-icon { color: var(--text-dim); }
+
+/* ---------- Auth provider buttons ---------- */
+.auth-providers { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }

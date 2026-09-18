@@ -1,7 +1,7 @@
 import type { Difficulty } from '../lib/generator'
 import { VARIANT_CONFIGS, type VariantId } from '../sudoku'
 import CustomSelect from './CustomSelect'
-import { IconPlay } from './Icons'
+import { IconPlay, IconStar, IconClose } from './Icons'
 import { sound } from '../lib/audio'
 
 export interface SinglePlayerModalProps {
@@ -43,7 +43,9 @@ export default function SinglePlayerModal({
             <span className="logo-cell logo-sm">9</span>
             <h2>Single Player Arena Setup</h2>
           </div>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button className="btn-close" onClick={onClose} aria-label="Close">
+            <IconClose size={16} />
+          </button>
         </header>
 
         <div className="modal-body-fields">
@@ -78,7 +80,9 @@ export default function SinglePlayerModal({
                     <div className="step-info">
                       <div className="step-name">{stg.label}</div>
                       <div className="step-stars">
-                        {'★'.repeat(stg.stars)}{'☆'.repeat(6 - stg.stars)}
+                        {Array.from({ length: 6 }, (_, i) => (
+                          <IconStar key={i} size={11} filled={i < stg.stars} />
+                        ))}
                       </div>
                       <div className="step-desc">{stg.desc}</div>
                     </div>

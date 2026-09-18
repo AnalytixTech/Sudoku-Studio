@@ -11,10 +11,49 @@ import {
   recordGameWin,
   recordBattlePlayed,
   recordBattleWin,
-  loadUserXp,
-  saveUserXp,
   type AllStats,
 } from './lib/stats'
+import {
+  COSTS,
+  battleWinReward,
+  continueOffer,
+  dailyReward,
+  grant,
+  grantXp,
+  levelFromXp,
+  loadWallet,
+  overwriteWallet,
+  spend,
+  takeContinue,
+  winReward,
+  BATTLE_PLAYED_XP,
+  type Wallet,
+} from './lib/economy'
+import {
+  clearGame,
+  loadGame,
+  notesFromJson,
+  notesToJson,
+  saveGame,
+  summarize,
+  SAVE_VERSION,
+  type SavedGame,
+} from './lib/persistence'
+import {
+  confettiColors,
+  loadInventory,
+  mergeServerEntitlements,
+  type Inventory,
+} from './lib/cosmetics'
+import { clearSession, loadSession, saveSession, type Session } from './lib/api'
+import { onAuthChange, supabaseEnabled } from './lib/supabase'
+import {
+  migrateLocal,
+  queueEarn,
+  queueSpend,
+  reconcile,
+  startAutoFlush,
+} from './lib/walletSync'
 import { generateDailyPuzzle, recordDailyCompletion, getTodayDateString } from './lib/daily'
 import {
   DEFAULT_CONFIG,
@@ -39,6 +78,9 @@ import CustomSelect from './components/CustomSelect'
 import SinglePlayerModal from './components/SinglePlayerModal'
 import MultiplayerModal from './components/MultiplayerModal'
 import HelperConfirmModal from './components/HelperConfirmModal'
+import GameOverModal from './components/GameOverModal'
+import ShopModal from './components/ShopModal'
+import AccountModal from './components/AccountModal'
 import BattleHUD from './components/BattleHUD'
 import BattleCountdownOverlay from './components/BattleCountdownOverlay'
 import {
@@ -65,6 +107,9 @@ import {
   IconRefresh,
   IconArrowLeft,
   IconClose,
+  IconCoin,
+  IconPalette,
+  IconUser,
 } from './components/Icons'
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master', 'grand master']
@@ -87,6 +132,9 @@ function fmt(sec: number): string {
 }
 
 type Screen = 'menu' | 'game' | 'solver'
+
+/** Mistakes allowed before a single-player or daily puzzle fails. */
+const MISTAKE_LIMIT = 3
 
 interface HistoryEntry {
   board: Grid
@@ -115,18 +163,30 @@ export default function App() {
 
   // Sound & Theme & Stats
   const [muted, setMuted] = useState(() => sound.isMuted())
-  const [theme, setTheme] = useState(() => localStorage.getItem('sudoku_theme') || 'midnight')
+  const [inventory, setInventory] = useState<Inventory>(() => loadInventory())
+  const [showShop, setShowShop] = useState(false)
+  const [session, setSession] = useState<Session | null>(() => loadSession())
+  const [showAccount, setShowAccount] = useState(false)
+  const theme = inventory.equipped.theme
   const [stats, setStats] = useState<AllStats>(() => loadStats())
   const [showStatsModal, setShowStatsModal] = useState(false)
   const [showSinglePlayerModal, setShowSinglePlayerModal] = useState(false)
   const [isDailyChallenge, setIsDailyChallenge] = useState(false)
-  const [userXp, setUserXp] = useState(() => loadUserXp())
+  const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
   const [pendingHelper, setPendingHelper] = useState<{
     title: string
     cost: number
     description: string
+    /** Which entry in the server's cost table this is. */
+    item: 'hint' | 'autoNotes' | 'autoSolve'
     action: () => void
   } | null>(null)
+  const [lastReward, setLastReward] = useState<{ coins: number; xp: number; lines: string[] } | null>(
+    null
+  )
+
+  // Resume support: what was in progress when the app was last closed.
+  const [resumable, setResumable] = useState<SavedGame | null>(() => loadGame())
 
   const [selected, setSelected] = useState<string | null>(null)
   const [digitHighlight, setDigitHighlight] = useState(0)
@@ -152,6 +212,7 @@ export default function App() {
   const dismissStatus = useCallback(() => setStatus(null), [])
   const [seconds, setSeconds] = useState(0)
   const [mistakes, setMistakes] = useState(0)
+  const [failed, setFailed] = useState(false)
   const [solved, setSolved] = useState(false)
   const [showWinModal, setShowWinModal] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -204,13 +265,19 @@ export default function App() {
     return counts
   }, [board, variantConfig])
 
-  // Apply theme class to body
+  // Equipped cosmetics are expressed as body classes: the theme swaps the CSS
+  // variable set, the numeral style restyles digits, pips and the keypad.
   useEffect(() => {
-    document.body.className = `theme-${theme}`
-    localStorage.setItem('sudoku_theme', theme)
-  }, [theme])
+    document.body.className = `theme-${inventory.equipped.theme} digits-${inventory.equipped.digits}`
+  }, [inventory.equipped.theme, inventory.equipped.digits])
 
-  // Auto-join room from URL query param `?room=ROOM_ID`
+  // Auto-join room from URL query param `?room=ROOM_ID`.
+  //
+  // Deliberately NOT guarded against StrictMode's double-invoke: the unmount
+  // cleanup below disconnects the client between the two runs, so a guard here
+  // would leave the guest permanently disconnected. The relay handles the
+  // duplicate connection instead, by treating a second socket from the same
+  // device as taking over its own slot.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlRoom = params.get('room')
@@ -221,10 +288,10 @@ export default function App() {
 
   // Timer
   useEffect(() => {
-    if (solved || screen !== 'game' || battleHidden) return
+    if (solved || failed || screen !== 'game' || battleHidden) return
     const t = setInterval(() => setSeconds((s) => s + 1), 1000)
     return () => clearInterval(t)
-  }, [solved, screen, battleHidden])
+  }, [solved, failed, screen, battleHidden])
 
   // ---------------- MULTIPLAYER LOGIC ----------------
 
@@ -255,6 +322,8 @@ export default function App() {
     setMistakes(0)
     setSeconds(0)
     setSolved(false)
+    setFailed(false)
+    setLastReward(null)
     setShowWinModal(false)
     setShowMultiplayerModal(false)
     setIsDailyChallenge(false)
@@ -271,6 +340,8 @@ export default function App() {
     // Counted here rather than on victory, so losing a match still counts as
     // having competed in one.
     recordBattlePlayed()
+    setWallet(grantXp(BATTLE_PLAYED_XP))
+    queueEarn({ type: 'battlePlayed' })
   }, [])
 
   const handleNetMessage = useCallback(
@@ -319,6 +390,46 @@ export default function App() {
 
   // Leave the room if the app unmounts mid-battle.
   useEffect(() => () => netClientRef.current?.disconnect(), [])
+
+  // The server owns the balance once signed in: drain anything queued offline,
+  // then take the server's figures over the local cache.
+  const syncFromServer = useCallback(async () => {
+    const state = await reconcile()
+    if (!state) return
+    setWallet(overwriteWallet(state.coins, state.xp))
+    if (state.entitlements.length > 0) setInventory(mergeServerEntitlements(state.entitlements))
+  }, [])
+
+  useEffect(() => {
+    if (!session) return
+    void syncFromServer()
+    return startAutoFlush()
+  }, [session, syncFromServer])
+
+  // Supabase owns the credential when configured: its access token is what the
+  // API verifies, so there is no second session to keep in step. This also
+  // catches the OAuth redirect landing back on the page.
+  useEffect(() => {
+    if (!supabaseEnabled()) return
+    return onAuthChange((sbSession) => {
+      if (!sbSession) {
+        clearSession()
+        setSession(null)
+        return
+      }
+      const next: Session = {
+        token: sbSession.access_token,
+        user: {
+          id: sbSession.user.id,
+          email: sbSession.user.email ?? '',
+          name: (sbSession.user.user_metadata?.full_name as string) ?? null,
+        },
+      }
+      saveSession(next)
+      setSession((prev) => (prev?.token === next.token ? prev : next))
+      void migrateLocal(loadWallet().coins).then(syncFromServer)
+    })
+  }, [syncFromServer])
 
   const joinBattleRoom = useCallback(
     (rId: string, asHost: boolean) => {
@@ -414,25 +525,59 @@ export default function App() {
 
       setStatus({ type: 'ok', text: `Puzzle Solved! Final Score: ${finalScoreState.score} pts` })
       sound.playWinFanfare()
-      triggerConfetti()
+      triggerConfetti(confettiColors(inventory.equipped.confetti))
+
+      // The puzzle is finished, so there is nothing left to resume into.
+      clearGame()
+      setResumable(null)
+
+      // ---- payout ----
+      const flawless = mistakes === 0
+      let coins = 0
+      let xp = 0
+      const lines: string[] = []
 
       if (isBattleActive) {
         // Battle results feed the battle achievements, not the single-player
         // tiers. The match was already counted at start, so only a win is
         // recorded here.
-        if (remotePlayer && finalScoreState.score > remotePlayer.score.score) recordBattleWin()
+        if (remotePlayer && finalScoreState.score > remotePlayer.score.score) {
+          recordBattleWin()
+          const r = battleWinReward()
+          coins += r.coins
+          xp += r.xp
+          lines.push(...r.lines)
+          queueEarn({ type: 'battleWin' })
+        }
       } else {
         setStats(recordGameWin(difficulty, seconds, mistakes, usedNotes))
+        const r = winReward(difficulty, flawless)
+        coins += r.coins
+        xp += r.xp
+        lines.push(...r.lines)
+        // The server re-prices this from the event; the amounts above are the
+        // optimistic local view.
+        queueEarn({ type: 'win', difficulty, flawless, durationSec: seconds })
       }
 
       if (isDailyChallenge) {
-        const { newStreak, bonusXp } = recordDailyCompletion()
-        if (bonusXp > 0) {
-          const updatedXp = loadUserXp() + bonusXp
-          saveUserXp(updatedXp)
-          setUserXp(updatedXp)
-          setStatus({ type: 'ok', text: `📅 Daily Challenge Solved! +${bonusXp} XP Awarded! (${newStreak}d Streak 🔥)` })
-        }
+        const { newStreak } = recordDailyCompletion()
+        const r = dailyReward(newStreak)
+        coins += r.coins
+        xp += r.xp
+        lines.push(...r.lines)
+        queueEarn({ type: 'daily', streak: newStreak })
+        setStatus({
+          type: 'ok',
+          text: `Daily Challenge solved! ${newStreak}-day streak.`,
+        })
+      }
+
+      if (coins > 0 || xp > 0) {
+        setWallet(grant({ coins, xp, lines }))
+        setLastReward({ coins, xp, lines })
+      } else {
+        setLastReward(null)
       }
     }
   }, [
@@ -450,6 +595,7 @@ export default function App() {
     remotePlayer,
     mistakes,
     usedNotes,
+    inventory.equipped.confetti,
   ])
 
   // Helper to record history state
@@ -473,6 +619,8 @@ export default function App() {
     async (diff: Difficulty = difficulty, varId: VariantId = variantId) => {
       setLoading(true)
       setSolved(false)
+      setFailed(false)
+      setLastReward(null)
       setShowWinModal(false)
       setIsBattleActive(false)
       // Leaving daily/battle mode must clear the flag, or its helper
@@ -525,6 +673,8 @@ export default function App() {
     sound.playPlaceDigit()
     setLoading(true)
     setSolved(false)
+    setFailed(false)
+    setLastReward(null)
     setShowWinModal(false)
     setIsBattleActive(false)
     setIsDailyChallenge(true)
@@ -554,7 +704,7 @@ export default function App() {
     setLocalPlayer((p) => ({ ...p, score: createInitialScore(config.size * config.size) }))
     setScreen('game')
     setLoading(false)
-    setStatus({ type: 'ok', text: `📅 Daily Challenge for ${getTodayDateString()} loaded!` })
+    setStatus({ type: 'ok', text: `Daily Challenge for ${getTodayDateString()} loaded.` })
   }, [])
 
   // ---------------- screen navigation ----------------
@@ -580,22 +730,25 @@ export default function App() {
     setScreen('menu')
     setSelected(null)
     setWrongCells(new Set())
+    // The autosave effect has already written any in-progress game, so re-read
+    // it to keep the menu's Continue card in sync.
+    setResumable(loadGame())
   }, [stopAutoSolveStatic])
 
   // ---------------- player input & note editing ----------------
   const selectCell = useCallback(
     (r: number, c: number) => {
-      if (autoSolve.playing || battleHidden) return
+      if (autoSolve.playing || failed || battleHidden) return
       setSelected(`${r},${c}`)
       setWrongCells(new Set())
       sound.playSelect()
     },
-    [autoSolve.playing, battleHidden]
+    [autoSolve.playing, failed, battleHidden]
   )
 
   const placeDigit = useCallback(
     (v: number) => {
-      if (!selected || autoSolve.playing || solved || battleHidden) return
+      if (!selected || autoSolve.playing || solved || failed || battleHidden) return
       const [r, c] = selected.split(',').map(Number)
       if (original[r][c]) return
 
@@ -643,7 +796,17 @@ export default function App() {
       if (!wasSame && v !== 0) {
         if (solution[r][c] !== v) {
           sound.playError()
-          setMistakes((m) => m + 1)
+          setMistakes((m) => {
+            const next = m + 1
+            // Battles are a race already scored by points, and ending one on a
+            // mistake would hand the win to the opponent, so the limit is a
+            // single-player and daily rule only.
+            if (!isBattleActive && next >= MISTAKE_LIMIT) {
+              setFailed(true)
+              setStatus({ type: 'error', text: `${MISTAKE_LIMIT} mistakes — puzzle failed.` })
+            }
+            return next
+          })
           setLocalPlayer((p) => {
             const nextScore = recordMistakePlacement(p.score)
             sendProgressUpdate(nextScore)
@@ -694,6 +857,8 @@ export default function App() {
       noteMode,
       autoSolve.playing,
       solved,
+      failed,
+      isBattleActive,
       battleHidden,
       variantConfig.size,
       pushHistory,
@@ -702,7 +867,7 @@ export default function App() {
   )
 
   const eraseCell = useCallback(() => {
-    if (!selected || autoSolve.playing || solved || battleHidden) return
+    if (!selected || autoSolve.playing || solved || failed || battleHidden) return
     const [r, c] = selected.split(',').map(Number)
     if (original[r][c]) return
     const cellKey = `${r},${c}`
@@ -719,7 +884,7 @@ export default function App() {
     setBoard(nextBoard)
     setUserNotes(nextNotes)
     pushHistory(nextBoard, nextNotes)
-  }, [selected, original, board, userNotes, autoSolve.playing, solved, battleHidden, pushHistory])
+  }, [selected, original, board, userNotes, autoSolve.playing, solved, failed, battleHidden, pushHistory])
 
   // Undo / Redo
   const handleUndo = useCallback(() => {
@@ -784,6 +949,7 @@ export default function App() {
     setHintStep(null)
     setWrongCells(new Set())
     setMistakes(0)
+    setFailed(false)
     setHistory([{ board: origClone, notes: {} }])
     setHistoryIdx(0)
     setStatus({ type: 'info', text: 'Board reset to the original puzzle.' })
@@ -843,7 +1009,8 @@ export default function App() {
   const requestAutoCandidates = useCallback(() => {
     setPendingHelper({
       title: 'Auto-Fill Pencil Notes',
-      cost: 30,
+      cost: COSTS.autoNotes,
+      item: 'autoNotes',
       description: 'Populate all valid candidate notes across empty cells in the puzzle grid.',
       action: handleAutoNotes,
     })
@@ -852,7 +1019,8 @@ export default function App() {
   const requestHint = useCallback(() => {
     setPendingHelper({
       title: 'Get Logical Hint',
-      cost: 20,
+      cost: COSTS.hint,
+      item: 'hint',
       description: 'Analyze board state and highlight the next logical move techniques.',
       action: handleHint,
     })
@@ -861,7 +1029,8 @@ export default function App() {
   const requestAutoSolve = useCallback(() => {
     setPendingHelper({
       title: 'Auto-Solve Puzzle',
-      cost: 50,
+      cost: COSTS.autoSolve,
+      item: 'autoSolve',
       description: 'Watch the step-by-step solver deduce and solve the puzzle step by step.',
       action: startAutoSolve,
     })
@@ -930,14 +1099,169 @@ export default function App() {
 
   const confirmHelper = useCallback(() => {
     if (!pendingHelper) return
-    const nextXp = userXp - pendingHelper.cost
-    if (nextXp < 0) return
-    saveUserXp(nextXp)
-    setUserXp(nextXp)
+    const next = spend(pendingHelper.cost)
+    if (!next) return // not enough coins; the modal already says so
+    setWallet(next)
+    queueSpend(pendingHelper.item)
     const act = pendingHelper.action
     setPendingHelper(null)
     act()
-  }, [pendingHelper, userXp])
+  }, [pendingHelper])
+
+  // ---------------- autosave / resume ----------------
+
+  // Kept in a ref so the save effect can read the live clock without re-running
+  // once per second.
+  const secondsRef = useRef(seconds)
+  secondsRef.current = seconds
+
+  const snapshot = useCallback((): SavedGame | null => {
+    // Battles are transient and depend on an opponent; a finished or unstarted
+    // board is not worth resuming into either.
+    if (isBattleActive || solved || screen !== 'game') return null
+    if (countEmpty(board) === totalCells || countEmpty(board) === 0) return null
+    return {
+      v: SAVE_VERSION,
+      savedAt: Date.now(),
+      variantId,
+      config: variantConfig,
+      difficulty,
+      original,
+      solution,
+      board,
+      notes: notesToJson(userNotes),
+      history: history.map((h) => ({ board: h.board, notes: notesToJson(h.notes) })),
+      historyIdx,
+      seconds: secondsRef.current,
+      mistakes,
+      usedNotes,
+      isDaily: isDailyChallenge,
+      dailyDate: isDailyChallenge ? getTodayDateString() : undefined,
+    }
+  }, [
+    isBattleActive,
+    solved,
+    screen,
+    board,
+    totalCells,
+    variantId,
+    variantConfig,
+    difficulty,
+    original,
+    solution,
+    userNotes,
+    history,
+    historyIdx,
+    mistakes,
+    usedNotes,
+    isDailyChallenge,
+  ])
+
+  useEffect(() => {
+    const snap = snapshot()
+    if (snap) saveGame(snap)
+  }, [snapshot])
+
+  // The clock only lives in the snapshot when something else changes, so flush
+  // on the way out to keep the resumed time honest.
+  useEffect(() => {
+    const flush = () => {
+      const snap = snapshot()
+      if (snap) saveGame(snap)
+    }
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [snapshot])
+
+  const resumeGame = useCallback(() => {
+    const g = loadGame()
+    if (!g) {
+      setResumable(null)
+      return
+    }
+    sound.playSelect()
+    setVariantId(g.variantId)
+    setVariantConfig(g.config)
+    setDifficulty(g.difficulty)
+    setOriginal(g.original)
+    setSolution(g.solution)
+    setBoard(g.board)
+    setUserNotes(notesFromJson(g.notes))
+    setHistory(
+      g.history.length > 0
+        ? g.history.map((h) => ({ board: h.board, notes: notesFromJson(h.notes) }))
+        : [{ board: g.board.map((r) => r.slice()), notes: notesFromJson(g.notes) }]
+    )
+    setHistoryIdx(g.history.length > 0 ? g.historyIdx : 0)
+    setSeconds(g.seconds)
+    setMistakes(g.mistakes)
+    setUsedNotes(g.usedNotes)
+    setIsDailyChallenge(g.isDaily)
+    setFailed(g.mistakes >= MISTAKE_LIMIT)
+    setIsBattleActive(false)
+    setSolved(false)
+    setShowWinModal(false)
+    setLastReward(null)
+    setSelected(null)
+    setWrongCells(new Set())
+    setFeed([])
+    setActiveIndex(null)
+    setHintStep(null)
+    setAutoSolve({ steps: [], index: 0, playing: false })
+    setLocalPlayer((p) => ({
+      ...p,
+      score: createInitialScore(g.config.size * g.config.size),
+    }))
+    setScreen('game')
+    setStatus({ type: 'ok', text: 'Resumed your saved puzzle.' })
+  }, [])
+
+  const discardResume = useCallback(() => {
+    clearGame()
+    setResumable(null)
+  }, [])
+
+  // ---------------- fail / continue ----------------
+  const offer = useMemo(() => continueOffer(wallet), [wallet])
+
+  const handleSignedIn = useCallback(
+    async (next: Session) => {
+      setSession(next)
+      // Offer whatever was earned signed out; the server caps what it honours.
+      await migrateLocal(loadWallet().coins)
+      const state = await reconcile()
+      if (state) {
+        setWallet(overwriteWallet(state.coins, state.xp))
+        if (state.entitlements.length > 0) setInventory(mergeServerEntitlements(state.entitlements))
+      }
+      setStatus({ type: 'ok', text: `Signed in as ${next.user.email}. Progress is saved to your account.` })
+    },
+    []
+  )
+
+  const handleSignedOut = useCallback(() => {
+    setSession(null)
+    setStatus({ type: 'info', text: 'Signed out. Progress is saved on this device.' })
+  }, [])
+
+  const handleContinue = useCallback(() => {
+    const next = takeContinue()
+    if (!next) return
+    setWallet(next)
+    // Only a paid continue is a spend; the daily free one costs nothing.
+    if (offer.freeRemaining === 0) queueSpend('continue')
+    setFailed(false)
+    setMistakes(0)
+    sound.playHint()
+    setStatus({ type: 'ok', text: 'Back in. Mistakes reset — good luck.' })
+  }, [offer.freeRemaining])
 
   const stepAutoSolve = useCallback(() => {
     const step = replayStepRef.current
@@ -1002,7 +1326,6 @@ export default function App() {
     return (
       <div className={`app theme-${theme}`}>
         <StartScreen
-          theme={theme}
           muted={muted}
           onOpenSinglePlayerModal={() => setShowSinglePlayerModal(true)}
           onOpenSolver={openSolver}
@@ -1010,7 +1333,14 @@ export default function App() {
           onStartDaily={startDailyGame}
           onOpenStats={() => setShowStatsModal(true)}
           onToggleSound={() => setMuted(sound.toggleMute())}
-          onChangeTheme={setTheme}
+          onOpenShop={() => setShowShop(true)}
+          onOpenAccount={() => setShowAccount(true)}
+          accountEmail={session?.user.email ?? null}
+          resume={resumable ? summarize(resumable) : null}
+          onResume={resumeGame}
+          onDiscardResume={discardResume}
+          coins={wallet.coins}
+          level={levelFromXp(wallet.xp).level}
         />
         {showSinglePlayerModal && (
           <SinglePlayerModal
@@ -1042,6 +1372,25 @@ export default function App() {
           />
         )}
         {showStatsModal && <StatsModal stats={stats} onClose={() => setShowStatsModal(false)} />}
+        {showAccount && (
+          <AccountModal
+            session={session}
+            coins={wallet.coins}
+            onSignedIn={handleSignedIn}
+            onSignedOut={handleSignedOut}
+            onClose={() => setShowAccount(false)}
+          />
+        )}
+        {showShop && (
+          <ShopModal
+            inventory={inventory}
+            coins={wallet.coins}
+            level={levelFromXp(wallet.xp).level}
+            onInventoryChange={setInventory}
+            onCoinsChange={(c) => setWallet((w) => ({ ...w, coins: c }))}
+            onClose={() => setShowShop(false)}
+          />
+        )}
       </div>
     )
   }
@@ -1091,28 +1440,28 @@ export default function App() {
           <button className="top-tool-btn" onClick={() => setShowStatsModal(true)}>
             <IconTrophy /> Stats
           </button>
-          <div className="theme-picker">
-            <button
-              className={`theme-dot dot-cyberpunk ${theme === 'cyberpunk' ? 'active' : ''}`}
-              onClick={() => setTheme('cyberpunk')}
-              title="Cyberpunk Neon"
-            />
-            <button
-              className={`theme-dot dot-midnight ${theme === 'midnight' ? 'active' : ''}`}
-              onClick={() => setTheme('midnight')}
-              title="Midnight Slate"
-            />
-            <button
-              className={`theme-dot dot-emerald ${theme === 'emerald' ? 'active' : ''}`}
-              onClick={() => setTheme('emerald')}
-              title="Emerald Zen"
-            />
-          </div>
+          <button
+            className="top-tool-btn"
+            onClick={() => setShowShop(true)}
+            title="Themes, numerals and win effects"
+          >
+            <IconPalette size={15} /> Shop
+          </button>
+          <button
+            className="top-tool-btn"
+            onClick={() => setShowAccount(true)}
+            title={session ? session.user.email : 'Sign in to save your progress'}
+          >
+            <IconUser size={15} /> {session ? 'Account' : 'Sign in'}
+          </button>
         </div>
 
         <div className="stats">
-          <span className="xp-top-pill" title="Player XP Balance">
-            ⚡ {userXp} XP
+          <span className="xp-top-pill" title="Coins — spend on hints and continues">
+            <IconCoin size={14} /> {wallet.coins}
+          </span>
+          <span className="lvl-top-pill" title={`Level ${levelFromXp(wallet.xp).level}`}>
+            LVL {levelFromXp(wallet.xp).level}
           </span>
           <div className="stat">
             <span className="stat-label">Time</span>
@@ -1251,7 +1600,7 @@ export default function App() {
             onAutoNotes={requestAutoCandidates}
             onClearNotes={handleClearNotes}
             autoNotesDisabled={helpersRestricted}
-            disabled={playing || solved || battleHidden}
+            disabled={playing || solved || failed || battleHidden}
           />
         </section>
 
@@ -1336,6 +1685,36 @@ export default function App() {
               <span>Max Streak {localPlayer.score.maxStreak}x</span>
             </div>
 
+            {lastReward && (lastReward.coins > 0 || lastReward.xp > 0) && (
+              <div className="reward-panel">
+                <div className="reward-totals">
+                  {lastReward.coins > 0 && (
+                    <span className="reward-coins">
+                      <IconCoin size={17} /> +{lastReward.coins}
+                    </span>
+                  )}
+                  {lastReward.xp > 0 && <span className="reward-xp">+{lastReward.xp} XP</span>}
+                </div>
+                {lastReward.lines.length > 0 && (
+                  <ul className="reward-lines">
+                    {lastReward.lines.map((l) => (
+                      <li key={l}>{l}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="reward-level">
+                  Level {levelFromXp(wallet.xp).level} · {levelFromXp(wallet.xp).into}/
+                  {levelFromXp(wallet.xp).span} XP
+                  <div className="reward-level-track">
+                    <div
+                      className="reward-level-fill"
+                      style={{ width: `${levelFromXp(wallet.xp).pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {!isBattleActive && (
               <div className="win-difficulty-selector">
                 <label className="pill diff-picker">
@@ -1369,11 +1748,24 @@ export default function App() {
         </div>
       )}
 
+      {failed && !solved && (
+        <GameOverModal
+          mistakeLimit={MISTAKE_LIMIT}
+          seconds={seconds}
+          freeContinues={offer.freeRemaining}
+          continueCost={offer.cost}
+          coins={wallet.coins}
+          onContinue={handleContinue}
+          onNewGame={() => startNewGame(difficulty, variantId)}
+          onMenu={backToMenu}
+        />
+      )}
+
       {pendingHelper && (
         <HelperConfirmModal
           title={pendingHelper.title}
           cost={pendingHelper.cost}
-          currentXp={userXp}
+          currentCoins={wallet.coins}
           description={pendingHelper.description}
           onConfirm={confirmHelper}
           onClose={() => setPendingHelper(null)}
@@ -1381,6 +1773,27 @@ export default function App() {
       )}
 
       {showStatsModal && <StatsModal stats={stats} onClose={() => setShowStatsModal(false)} />}
+
+      {showAccount && (
+        <AccountModal
+          session={session}
+          coins={wallet.coins}
+          onSignedIn={handleSignedIn}
+          onSignedOut={handleSignedOut}
+          onClose={() => setShowAccount(false)}
+        />
+      )}
+
+      {showShop && (
+        <ShopModal
+          inventory={inventory}
+          coins={wallet.coins}
+          level={levelFromXp(wallet.xp).level}
+          onInventoryChange={setInventory}
+          onCoinsChange={(c) => setWallet((w) => ({ ...w, coins: c }))}
+          onClose={() => setShowShop(false)}
+        />
+      )}
     </div>
   )
 }

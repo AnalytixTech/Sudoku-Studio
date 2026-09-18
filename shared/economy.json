@@ -1,0 +1,68 @@
+{
+  "_comment": "Single source of truth for the economy. Imported by the client (src/lib/economy.ts) AND the server (server/api/wallet.js). The server never trusts a client-supplied amount: the client reports an EVENT and the server prices it from this table.",
+  "startCoins": 100,
+  "freeContinuesPerDay": 1,
+  "costs": {
+    "hint": 15,
+    "autoNotes": 25,
+    "autoSolve": 60,
+    "continue": 40
+  },
+  "winCoins": {
+    "easy": 8,
+    "medium": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 35,
+    "grand master": 50
+  },
+  "winXp": {
+    "easy": 20,
+    "medium": 35,
+    "hard": 60,
+    "expert": 90,
+    "master": 130,
+    "grand master": 180
+  },
+  "flawlessMultiplier": 1.5,
+  "dailyCoins": 25,
+  "dailyXp": 100,
+  "dailyStreakCoinCap": 20,
+  "battleWinCoins": 30,
+  "battleWinXp": 120,
+  "battlePlayedXp": 25,
+  "level": {
+    "base": 200,
+    "step": 100,
+    "max": 999
+  },
+  "cosmetics": {
+    "_comment": "Server-side price list for unlockables. The client catalogue (src/lib/cosmetics.ts) reads prices from here so the two cannot disagree.",
+    "theme:midnight": { "price": 0 },
+    "theme:cyberpunk": { "price": 0 },
+    "theme:emerald": { "price": 0 },
+    "theme:daylight": { "price": 120 },
+    "theme:oceanic": { "price": 140 },
+    "theme:sakura": { "price": 180 },
+    "theme:amber": { "price": 180 },
+    "theme:crimson": { "price": 220, "minLevel": 3 },
+    "theme:slate": { "price": 240, "minLevel": 4 },
+    "theme:royal": { "price": 320, "minLevel": 6 },
+    "theme:matrix": { "price": 400, "minLevel": 8 },
+    "digits:classic": { "price": 0 },
+    "digits:rounded": { "price": 90 },
+    "digits:mono": { "price": 110 },
+    "digits:serif": { "price": 130, "minLevel": 3 },
+    "confetti:classic": { "price": 0 },
+    "confetti:neon": { "price": 70 },
+    "confetti:gold": { "price": 110 },
+    "confetti:aurora": { "price": 150, "minLevel": 5 }
+  },
+  "limits": {
+    "_comment": "Sanity bounds the server applies to earn events. A client claiming more wins than these is rate-limited, which caps how fast a tampered client can inflate a balance.",
+    "maxEarnsPerHour": 60,
+    "minSecondsPerWin": 10,
+    "maxCoinsPerEarn": 200,
+    "migrationCap": 300
+  }
+}

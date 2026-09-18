@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { type Rect, type GridLines } from '../lib/ocr'
+import { IconRotateLeft } from './Icons'
 
 export interface GridOverlayProps {
   image: HTMLImageElement
@@ -188,7 +189,7 @@ export default function GridOverlay({ image, bounds, gridLines, onApply, onManua
     >
       <div className="overlay-tools">
         <button className="btn btn-sm btn-line-reset" onClick={resetUniformLines} title="Reset cell lines to equal 9x9 size">
-          ↺ Reset Grid Lines
+          <IconRotateLeft size={13} /> Reset Grid Lines
         </button>
       </div>
 

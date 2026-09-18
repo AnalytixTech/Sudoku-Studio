@@ -4,7 +4,7 @@ import type { Difficulty } from '../lib/generator'
 import type { ConnectionState, MultiplayerPlayer } from '../lib/multiplayer'
 import { getUsername, setUsername } from '../lib/multiplayer'
 import CustomSelect from './CustomSelect'
-import { IconCheck, IconPlay, IconTrophy } from './Icons'
+import { IconCheck, IconPlay, IconTrophy, IconClose } from './Icons'
 
 export interface MultiplayerModalProps {
   roomId: string
@@ -84,7 +84,9 @@ export default function MultiplayerModal({
             <IconTrophy size={20} color="var(--accent)" />
             <h2>1v1 Online Sudoku Battle</h2>
           </div>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button className="btn-close" onClick={onClose} aria-label="Close">
+            <IconClose size={16} />
+          </button>
         </header>
 
         <div className={`relay-status relay-${connection}`}>
@@ -144,7 +146,7 @@ export default function MultiplayerModal({
             <span className="player-badge">YOU</span>
             <span className="player-name">{localPlayer.name}</span>
             <span className="ready-status">
-              {localPlayer.ready ? 'READY ✓' : 'NOT READY'}
+              {localPlayer.ready ? <><IconCheck size={11} /> READY</> : 'NOT READY'}
             </span>
           </div>
 
@@ -156,7 +158,17 @@ export default function MultiplayerModal({
               {remotePlayer ? remotePlayer.name : 'Waiting for opponent...'}
             </span>
             <span className="ready-status">
-              {remotePlayer ? (remotePlayer.ready ? 'READY ✓' : 'NOT READY') : 'Offline'}
+              {remotePlayer ? (
+                remotePlayer.ready ? (
+                  <>
+                    <IconCheck size={11} /> READY
+                  </>
+                ) : (
+                  'NOT READY'
+                )
+              ) : (
+                'Offline'
+              )}
             </span>
           </div>
         </div>

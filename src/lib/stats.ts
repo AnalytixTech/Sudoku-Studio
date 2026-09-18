@@ -20,7 +20,6 @@ export interface ExtraStats {
 }
 
 const STORAGE_KEY = 'sudoku_player_stats_v1'
-const XP_STORAGE_KEY = 'sudoku_player_xp_v1'
 const EXTRA_KEY = 'sudoku_extra_stats_v1'
 
 const defaultDiffStats = (): DifficultyStats => ({
@@ -84,24 +83,6 @@ export function saveExtraStats(extra: ExtraStats): void {
   }
 }
 
-export function loadUserXp(): number {
-  try {
-    const raw = localStorage.getItem(XP_STORAGE_KEY)
-    if (raw === null) return 250 // Initial welcome bonus XP
-    return parseInt(raw, 10) || 0
-  } catch {
-    return 250
-  }
-}
-
-export function saveUserXp(xp: number): void {
-  try {
-    localStorage.setItem(XP_STORAGE_KEY, String(Math.max(0, xp)))
-  } catch (e) {
-    console.error('Failed to save XP to localStorage', e)
-  }
-}
-
 export function recordGameStart(diff: Difficulty): AllStats {
   const stats = loadStats()
   stats[diff].played += 1
@@ -127,11 +108,8 @@ export function recordGameWin(diff: Difficulty, timeSec: number, mistakes: numbe
   if (!usedNotes) extra.noNotesSolves += 1
   saveExtraStats(extra)
 
-  // Award XP for puzzle win
-  const rewardXp = 150 + dStats.currentStreak * 25
-  const currentXp = loadUserXp()
-  saveUserXp(currentXp + rewardXp)
-
+  // Currency and XP are granted by the caller via lib/economy, so this module
+  // stays purely about recording what happened.
   return stats
 }
 
@@ -143,7 +121,6 @@ export function recordBattleWin(): void {
   const extra = loadExtraStats()
   extra.battleWon += 1
   saveExtraStats(extra)
-  saveUserXp(loadUserXp() + 300)
 }
 
 export function recordBattlePlayed(): void {

@@ -64,6 +64,145 @@ Two things worth knowing if you change this:
 The client reconnects automatically with backoff, and queues anything sent
 while offline, so a dropped connection does not end a match.
 
+## Progression and economy
+
+Two separate quantities, defined in `src/lib/economy.ts`:
+
+- **Coins** — the spendable currency. Earned by solving; spent on hints, notes,
+  auto-solve and continues.
+- **XP** — only ever earned, and drives the player's **Level**. Spending never
+  reduces it.
+
+They were one number before, and the top bar and stats modal each showed a
+different figure labelled "XP". Keeping them apart also means a future rewarded
+ad can pay out coins without letting anyone buy progression.
+
+| Earned | Coins | XP |
+| --- | --- | --- |
+| Win (easy → grand master) | 8 → 50 | 20 → 180 |
+| Flawless solve (0 mistakes) | ×1.5 | — |
+| Daily challenge | 25 + 2/streak day (max +20) | 100 |
+| Battle win | 30 | 120 |
+| Battle played | — | 25 |
+
+| Spent | Coins |
+| --- | --- |
+| Hint | 15 |
+| Auto-fill notes | 25 |
+| Auto-solve | 60 |
+| Continue after failing | 40 (first one each day is free) |
+
+The rates are deliberately tight: roughly one win buys roughly one hint, so
+using a helper is a real decision. Returning players are migrated from the old
+single-XP balance, capped so nobody starts with enough to never choose again.
+
+**Mistake limit.** Three mistakes fail a single-player or daily puzzle and open
+the Game Over screen, which offers a continue. Battles are exempt — they are
+already scored by points, and ending one on a mistake would hand the opponent
+the win.
+
+**Where ads fit.** The continue in `GameOverModal` is the natural rewarded-video
+placement: the player actively wants something at that moment rather than being
+interrupted. `credit(coins)` in `economy.ts` is the entry point for paying out a
+reward. Avoid interstitials during a puzzle, and never during a battle — the
+opponent's clock keeps running.
+
+## Cosmetics
+
+`src/lib/cosmetics.ts` defines what coins buy: **11 themes** (including
+**Daylight**, the light mode), **4 numeral styles** and **4 win effects**,
+browsed in the shop (🎨 Shop, on the menu and the in-game top bar). Three themes
+and one of each other kind are free; the rest cost coins, and the premium tail
+also requires a **Level**, which is what gives lifetime XP a purpose beyond a
+number on the profile.
+
+Everything is expressed as body classes — `theme-<id>` swaps the CSS variable
+set, `digits-<id>` restyles board numerals, candidate pips and the keypad
+together. Adding a theme means adding one variable block in `styles.css` and one
+entry in `THEMES`; no component changes. Numeral styles beyond the default use
+system font stacks so nothing extra has to download and they still work offline.
+
+### Theming contract
+
+Board surfaces are tokens, not hardcoded colours, so a theme can invert the
+whole surface treatment rather than only recolouring it:
+
+`--board-bg` · `--cell-bg` · `--cell-border` · `--cell-hover` · `--cell-shadow`
+· `--given` · `--pip` · `--on-accent` · `--scrim` · `--crop-bg` ·
+`--review-cell-bg` · `--review-cell-fg`
+
+They default to the original dark values in `:root`, so the ten dark themes need
+only the palette block. **Daylight** overrides the surface tokens too — a light
+cell needs a soft lift instead of the dark inset shadow, and `--on-accent` flips
+from near-black to white.
+
+Every theme is contrast-checked across five pairings (user digits, givens,
+candidate pips, dim text, and text on accent). All eleven pass WCAG AA; the
+tightest is 4.94:1.
+
+## Wallet security model
+
+Read this before adding payments.
+
+**Coins held in `localStorage` cannot be secured.** Anyone can open DevTools and
+set the balance to anything. Obfuscation, checksums, encryption and HMAC signing
+all fail the same way: the key or the check ships inside the bundle. Nothing in
+this repo pretends otherwise.
+
+That is tolerable only because local coins buy nothing that affects anyone else
+— cosmetics are visible to their owner alone, helpers are single-player, and
+battles use a separate score state that coins never touch. A player who edits
+their balance is cheating themselves.
+
+**It stops being tolerable the moment money is involved.** So `server/api/`
+holds an authoritative wallet, and the rule that makes it worth having is:
+
+> The client never states an amount. It reports an **event** — "won a hard
+> puzzle, no mistakes, in 4m12s" — and the server prices it from
+> `shared/economy.json`.
+
+| Property | How |
+| --- | --- |
+| Accounts | Google Sign-In; the server verifies the ID token, the client never asserts identity |
+| No minting | Amounts come from the server's own price table, never the request body |
+| No double-payout | The ledger's primary key is the caller's event id, so retries are absorbed |
+| No negative balances | A DB `CHECK` plus a `SELECT … FOR UPDATE` inside the transaction |
+| Auditability | Every change is a ledger row, including the signup grant, so `sum(ledger) = balance` for every account |
+| Bounded abuse | Per-hour earn cap, a per-event coin cap, and rejection of implausible events (a "win" faster than a human could type) |
+| Purchases | Credited only by the server, in their own ledger kind, exempt from the gameplay rate limit |
+
+Honest limit: **purchased** currency can be made airtight, **earned** currency
+cannot. The client still reports that it solved a puzzle. Rate limits and
+plausibility checks bound how fast a tampered client can inflate a balance;
+eliminating it entirely would mean validating gameplay server-side, which is not
+worth it for this game. Fraud on the money path is the part that actually costs
+you, and that path is closed.
+
+### Running the API
+
+The wallet is optional — without `DATABASE_URL` the service runs as a pure
+relay, so **battles keep working even if the database is down**.
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string; enables the API |
+| `GOOGLE_CLIENT_ID` | OAuth client id used to verify sign-in tokens |
+| `ALLOWED_ORIGINS` | Locks both the API and the relay to your app's domain |
+| `DEV_AUTH=1` | Local only — accepts `dev:someone@example.com` as an identity. Refuses to work when `NODE_ENV=production` |
+
+Tests run the production SQL against [PGlite](https://pglite.dev) in-process, so
+no database has to be provisioned to verify the wallet.
+
+## Saving and resuming
+
+The in-progress puzzle is autosaved to `localStorage` (`src/lib/persistence.ts`)
+and offered as a **Continue** card on the menu. Board, notes, undo history,
+timer and mistake count all survive a reload or the OS evicting a backgrounded
+PWA. The whole `VariantConfig` is stored rather than just the variant id,
+because jigsaw region maps are randomised per game and cannot be rebuilt from
+the id alone. Battles are not saved: they are transient and depend on an
+opponent.
+
 ## Installable app (PWA)
 
 The build emits a web app manifest and a service worker (`vite-plugin-pwa`), so

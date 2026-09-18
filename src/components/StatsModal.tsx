@@ -1,9 +1,34 @@
-import { memo, useState } from 'react'
+import { memo, useState, type ComponentType } from 'react'
 import type { AllStats } from '../lib/stats'
 import type { Difficulty } from '../lib/generator'
 import { loadExtraStats } from '../lib/stats'
 import { loadDailyStatus } from '../lib/daily'
-import { IconTrophy, IconClose, IconSparkles } from './Icons'
+import { levelFromXp, loadWallet, rankName } from '../lib/economy'
+import {
+  IconTrophy,
+  IconClose,
+  IconSparkles,
+  IconLock,
+  IconCheck,
+  IconGamepad,
+  IconCalendar,
+  IconCalendarDays,
+  IconSwords,
+  IconSprout,
+  IconPuzzle,
+  IconGraduation,
+  IconBrain,
+  IconBolt,
+  IconRocket,
+  IconShield,
+  IconPencilOff,
+  IconCrown,
+  IconFlame,
+  IconStar,
+  IconGem,
+  IconMedal,
+  type IconProps,
+} from './Icons'
 
 export interface StatsModalProps {
   stats: AllStats
@@ -24,7 +49,7 @@ interface Achievement {
   category: 'solo' | 'daily' | 'battle'
   title: string
   desc: string
-  icon: string
+  Icon: ComponentType<IconProps>
   unlocked: boolean
 }
 
@@ -49,16 +74,11 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
     }
   })
 
-  // Level & XP math
-  const totalXp =
-    totalWon * 150 +
-    totalPlayed * 25 +
-    maxStreak * 50 +
-    dailyStatus.completedDates.length * 200 +
-    extraStats.battleWon * 300
-  const level = Math.floor(totalXp / 500) + 1
-  const xpInCurrentLevel = totalXp % 500
-  const xpPct = Math.round((xpInCurrentLevel / 500) * 100)
+  // Level comes from the wallet's lifetime XP, the same number the top bar and
+  // the results screen use -- previously this modal computed its own total, so
+  // the app showed two different figures both labelled XP.
+  const wallet = loadWallet()
+  const { level, into, span, pct } = levelFromXp(wallet.xp)
 
   const achievements: Achievement[] = [
     // --- SINGLE PLAYER & MASTERY ---
@@ -67,7 +87,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'First Step',
       desc: 'Win your first puzzle match',
-      icon: '🌱',
+      Icon: IconSprout,
       unlocked: totalWon >= 1,
     },
     {
@@ -75,7 +95,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Puzzle Enthusiast',
       desc: 'Solve 5 single-player puzzles',
-      icon: '🧩',
+      Icon: IconPuzzle,
       unlocked: totalWon >= 5,
     },
     {
@@ -83,7 +103,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Sudoku Scholar',
       desc: 'Win at least 10 puzzles',
-      icon: '🎓',
+      Icon: IconGraduation,
       unlocked: totalWon >= 10,
     },
     {
@@ -91,7 +111,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Logic Architect',
       desc: 'Solve 25 single-player puzzles',
-      icon: '🧠',
+      Icon: IconBrain,
       unlocked: totalWon >= 25,
     },
     {
@@ -99,7 +119,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Speed Demon',
       desc: 'Solve a puzzle in under 3 minutes',
-      icon: '⚡',
+      Icon: IconBolt,
       unlocked: overallBestTime !== null && overallBestTime <= 180,
     },
     {
@@ -107,7 +127,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Sub-2 Velocity',
       desc: 'Solve a puzzle in under 2 minutes',
-      icon: '🚀',
+      Icon: IconRocket,
       unlocked: overallBestTime !== null && overallBestTime <= 120,
     },
     {
@@ -115,7 +135,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Flawless Solver',
       desc: 'Solve a puzzle with 0 mistakes',
-      icon: '🛡️',
+      Icon: IconShield,
       unlocked: extraStats.flawlessSolves >= 1,
     },
     {
@@ -123,7 +143,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Pure Tactician',
       desc: 'Solve a puzzle without candidate notes',
-      icon: '📝',
+      Icon: IconPencilOff,
       unlocked: extraStats.noNotesSolves >= 1,
     },
     {
@@ -131,7 +151,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Grandmaster Conqueror',
       desc: 'Win a Grand Master tier puzzle',
-      icon: '👑',
+      Icon: IconCrown,
       unlocked: stats['grand master']?.won > 0,
     },
     {
@@ -139,7 +159,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Hot Streak',
       desc: 'Achieve a 3-game win streak',
-      icon: '🔥',
+      Icon: IconFlame,
       unlocked: maxStreak >= 3,
     },
     {
@@ -147,7 +167,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'solo',
       title: 'Unstoppable Legend',
       desc: 'Achieve a 5-game win streak',
-      icon: '🏆',
+      Icon: IconTrophy,
       unlocked: maxStreak >= 5,
     },
 
@@ -157,7 +177,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'daily',
       title: 'Daily Pioneer',
       desc: 'Complete your first Daily Challenge',
-      icon: '📅',
+      Icon: IconCalendar,
       unlocked: dailyStatus.completedDates.length >= 1,
     },
     {
@@ -165,7 +185,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'daily',
       title: '3-Day Consistency',
       desc: 'Maintain a 3-day Daily Challenge streak',
-      icon: '🗓️',
+      Icon: IconCalendarDays,
       unlocked: dailyStatus.currentStreak >= 3,
     },
     {
@@ -173,7 +193,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'daily',
       title: 'Daily Streak Master',
       desc: 'Reach a 7-day Daily Challenge streak',
-      icon: '🌟',
+      Icon: IconStar,
       unlocked: dailyStatus.currentStreak >= 7,
     },
     {
@@ -181,7 +201,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'daily',
       title: 'Monthly Legend',
       desc: 'Complete 30 Daily Challenges',
-      icon: '💎',
+      Icon: IconGem,
       unlocked: dailyStatus.completedDates.length >= 30,
     },
 
@@ -191,7 +211,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'battle',
       title: 'First Blood',
       desc: 'Win your first 1v1 Battle duel',
-      icon: '⚔️',
+      Icon: IconSwords,
       unlocked: extraStats.battleWon >= 1,
     },
     {
@@ -199,7 +219,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'battle',
       title: 'Battle Veteran',
       desc: 'Compete in 5 Battle duels',
-      icon: '🛡️',
+      Icon: IconShield,
       unlocked: extraStats.battlePlayed >= 5,
     },
     {
@@ -207,7 +227,7 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
       category: 'battle',
       title: 'Battle Champion',
       desc: 'Win 5 Battle duels',
-      icon: '🏅',
+      Icon: IconMedal,
       unlocked: extraStats.battleWon >= 5,
     },
   ]
@@ -241,14 +261,14 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
           <div className="xp-info">
             <div className="xp-title-row">
               <span className="xp-rank-name">
-                <IconSparkles size={14} /> {level >= 10 ? 'Sudoku Overlord' : level >= 5 ? 'Grandmaster Scholar' : level >= 3 ? 'Adept Strategist' : 'Novice Solver'}
+                <IconSparkles size={14} /> {rankName(level)}
               </span>
               <span className="xp-val">
-                {xpInCurrentLevel} / 500 to next level • {totalXp} lifetime XP earned
+                {into} / {span} to next level
               </span>
             </div>
             <div className="xp-bar-track">
-              <div className="xp-bar-fill" style={{ width: `${xpPct}%` }} />
+              <div className="xp-bar-fill" style={{ width: `${pct}%` }} />
             </div>
           </div>
         </div>
@@ -267,21 +287,24 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
             className={`achieve-tab ${activeTab === 'solo' ? 'achieve-tab-active' : ''}`}
             onClick={() => setActiveTab('solo')}
           >
-            🎮 Solo ({achievements.filter((a) => a.category === 'solo' && a.unlocked).length})
+            <IconGamepad size={14} /> Solo (
+            {achievements.filter((a) => a.category === 'solo' && a.unlocked).length})
           </button>
           <button
             type="button"
             className={`achieve-tab ${activeTab === 'daily' ? 'achieve-tab-active' : ''}`}
             onClick={() => setActiveTab('daily')}
           >
-            📅 Daily ({achievements.filter((a) => a.category === 'daily' && a.unlocked).length})
+            <IconCalendar size={14} /> Daily (
+            {achievements.filter((a) => a.category === 'daily' && a.unlocked).length})
           </button>
           <button
             type="button"
             className={`achieve-tab ${activeTab === 'battle' ? 'achieve-tab-active' : ''}`}
             onClick={() => setActiveTab('battle')}
           >
-            ⚔️ Battle ({achievements.filter((a) => a.category === 'battle' && a.unlocked).length})
+            <IconSwords size={14} /> Battle (
+            {achievements.filter((a) => a.category === 'battle' && a.unlocked).length})
           </button>
         </div>
 
@@ -290,15 +313,21 @@ function StatsModal({ stats, onClose }: StatsModalProps) {
           <div className="achievements-grid">
             {filtered.map((ach) => (
               <div key={ach.id} className={`achieve-card ${ach.unlocked ? 'achieve-unlocked' : 'achieve-locked'}`}>
-                <span className="achieve-icon">{ach.icon}</span>
+                <span className="achieve-icon">
+                  <ach.Icon size={20} />
+                </span>
                 <div className="achieve-details">
                   <span className="achieve-name">{ach.title}</span>
                   <span className="achieve-desc">{ach.desc}</span>
                 </div>
                 {ach.unlocked ? (
-                  <span className="achieve-check">✓</span>
+                  <span className="achieve-check">
+                    <IconCheck size={14} />
+                  </span>
                 ) : (
-                  <span className="achieve-lock-icon">🔒</span>
+                  <span className="achieve-lock-icon">
+                    <IconLock size={13} />
+                  </span>
                 )}
               </div>
             ))}

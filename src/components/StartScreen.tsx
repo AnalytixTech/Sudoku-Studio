@@ -1,8 +1,22 @@
-import { IconTrophy, IconSoundOn, IconSoundOff, IconCamera, IconPlay } from './Icons'
+import {
+  IconTrophy,
+  IconSoundOn,
+  IconSoundOff,
+  IconCamera,
+  IconPlay,
+  IconClose,
+  IconCoin,
+  IconPalette,
+  IconUser,
+  IconCalendar,
+  IconFlame,
+  IconCheck,
+} from './Icons'
 import { isTodayCompleted, loadDailyStatus, getTodayDateString } from '../lib/daily'
+import type { ResumeSummary } from '../lib/persistence'
+import { DAILY_COINS, DAILY_XP } from '../lib/economy'
 
 export interface StartScreenProps {
-  theme: string
   muted: boolean
   onOpenSinglePlayerModal: () => void
   onOpenBattle: () => void
@@ -10,11 +24,25 @@ export interface StartScreenProps {
   onStartDaily: () => void
   onOpenStats: () => void
   onToggleSound: () => void
-  onChangeTheme: (theme: string) => void
+  onOpenShop: () => void
+  onOpenAccount: () => void
+  /** Email of the signed-in player, or null when playing locally. */
+  accountEmail: string | null
+  /** An unfinished puzzle waiting to be picked back up, if any. */
+  resume: ResumeSummary | null
+  onResume: () => void
+  onDiscardResume: () => void
+  coins: number
+  level: number
+}
+
+function fmtClock(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 function StartScreen({
-  theme,
   muted,
   onOpenSinglePlayerModal,
   onOpenBattle,
@@ -22,7 +50,14 @@ function StartScreen({
   onStartDaily,
   onOpenStats,
   onToggleSound,
-  onChangeTheme,
+  onOpenShop,
+  onOpenAccount,
+  accountEmail,
+  resume,
+  onResume,
+  onDiscardResume,
+  coins,
+  level,
 }: StartScreenProps) {
   const dailyDone = isTodayCompleted()
   const dailyStatus = loadDailyStatus()
@@ -31,6 +66,12 @@ function StartScreen({
   return (
     <div className="menu">
       <div className="menu-top-toolbar">
+        <span className="menu-wallet" title="Coins — spend on hints and continues">
+          <IconCoin size={15} /> {coins}
+        </span>
+        <span className="menu-level" title="Level from lifetime XP">
+          LVL {level}
+        </span>
         <button className="top-tool-btn" onClick={onOpenStats} title="View player statistics">
           <IconTrophy size={16} /> Stats &amp; Badges
         </button>
@@ -38,24 +79,16 @@ function StartScreen({
           {muted ? <IconSoundOff size={16} /> : <IconSoundOn size={16} />}
           <span>{muted ? 'Muted' : 'Sound On'}</span>
         </button>
-        <div className="theme-picker">
-          <span className="theme-label">Theme:</span>
-          <button
-            className={`theme-dot dot-cyberpunk ${theme === 'cyberpunk' ? 'active' : ''}`}
-            onClick={() => onChangeTheme('cyberpunk')}
-            title="Cyberpunk Neon"
-          />
-          <button
-            className={`theme-dot dot-midnight ${theme === 'midnight' ? 'active' : ''}`}
-            onClick={() => onChangeTheme('midnight')}
-            title="Midnight Slate"
-          />
-          <button
-            className={`theme-dot dot-emerald ${theme === 'emerald' ? 'active' : ''}`}
-            onClick={() => onChangeTheme('emerald')}
-            title="Emerald Zen"
-          />
-        </div>
+        <button className="top-tool-btn" onClick={onOpenShop} title="Themes, numerals and win effects">
+          <IconPalette size={16} /> Shop
+        </button>
+        <button
+          className="top-tool-btn"
+          onClick={onOpenAccount}
+          title={accountEmail || 'Sign in to save your progress across devices'}
+        >
+          <IconUser size={16} /> {accountEmail ? 'Account' : 'Sign in'}
+        </button>
       </div>
 
       <div className="menu-hero">
@@ -67,18 +100,59 @@ function StartScreen({
       </div>
 
       <div className="action-buttons-grid">
+        {resume && (
+          <div className="resume-card">
+            <button className="action-tile tile-resume" onClick={onResume}>
+              <div className="tile-icon-wrap icon-resume">
+                <IconPlay size={22} />
+              </div>
+              <div className="tile-info">
+                <div className="tile-head-row">
+                  <h3>Continue</h3>
+                  <span className="resume-progress">
+                    {resume.filled}/{resume.total}
+                  </span>
+                </div>
+                <p>
+                  {resume.isDaily ? 'Daily Challenge' : resume.variantName} · {resume.difficulty} ·{' '}
+                  {fmtClock(resume.seconds)}
+                </p>
+              </div>
+            </button>
+            <button
+              className="resume-discard"
+              onClick={onDiscardResume}
+              title="Discard this saved puzzle"
+              aria-label="Discard saved puzzle"
+            >
+              <IconClose size={14} />
+            </button>
+          </div>
+        )}
+
         <button className="action-tile tile-daily" onClick={onStartDaily}>
           <div className="tile-icon-wrap icon-daily">
-            📅
+            <IconCalendar size={22} />
           </div>
           <div className="tile-info">
             <div className="tile-head-row">
               <h3>Daily Challenge</h3>
               <span className={`daily-badge ${dailyDone ? 'daily-done' : 'daily-active'}`}>
-                {dailyDone ? 'Completed ✓' : '+200 XP Bonus'}
+                {dailyDone ? (
+                  <>
+                    <IconCheck size={11} /> Completed
+                  </>
+                ) : (
+                  <>
+                    <IconCoin size={11} /> +{DAILY_COINS} &amp; {DAILY_XP} XP
+                  </>
+                )}
               </span>
             </div>
-            <p>Seeded puzzle for {todayStr} • {dailyStatus.currentStreak}d Streak 🔥</p>
+            <p className="tile-sub-row">
+              Seeded puzzle for {todayStr} • {dailyStatus.currentStreak}d streak{' '}
+              <IconFlame size={12} />
+            </p>
           </div>
         </button>
 

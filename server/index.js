@@ -10,6 +10,8 @@
 
 import http from 'node:http'
 import { WebSocketServer, WebSocket } from 'ws'
+import { openDb } from './api/db.js'
+import { createApi } from './api/routes.js'
 
 const PORT = Number(process.env.PORT) || 8787
 
@@ -18,6 +20,8 @@ const PORT = Number(process.env.PORT) || 8787
 const MAX_PER_ROOM = 2
 // Application-defined close code (4000-4999 is reserved for app use).
 const CLOSE_ROOM_FULL = 4409
+// The same device opened a newer connection; the old one steps aside quietly.
+const CLOSE_SUPERSEDED = 4410
 const MAX_PAYLOAD_BYTES = 512 * 1024
 const HEARTBEAT_MS = 30_000
 const ROOM_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
@@ -49,11 +53,34 @@ function originAllowed(origin) {
 /** @type {Map<string, Set<import('ws').WebSocket>>} */
 const rooms = new Map()
 
+// The wallet API is optional: without DATABASE_URL the service still runs as a
+// pure relay, so battles keep working even if the database is unreachable.
+let handleApi = null
+if (process.env.DATABASE_URL || process.env.WALLET_API === '1') {
+  try {
+    const db = await openDb()
+    handleApi = createApi(db, ALLOWED_ORIGINS)
+    console.log('Wallet API enabled at /api')
+  } catch (err) {
+    console.error('Wallet API disabled — database unavailable:', err.message)
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
     const players = [...rooms.values()].reduce((n, set) => n + set.size, 0)
     res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, rooms: rooms.size, players }))
+    res.end(JSON.stringify({ ok: true, rooms: rooms.size, players, api: Boolean(handleApi) }))
+    return
+  }
+  if (handleApi && req.url.startsWith('/api/')) {
+    handleApi(req, res).catch((err) => {
+      console.error('Unhandled API error:', err)
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: 'server_error' }))
+      }
+    })
     return
   }
   res.writeHead(404, { 'content-type': 'text/plain' })
@@ -64,8 +91,11 @@ const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES 
 
 server.on('upgrade', (req, socket, head) => {
   let roomId = null
+  let deviceId = null
   try {
-    roomId = new URL(req.url, 'http://placeholder').searchParams.get('room')
+    const params = new URL(req.url, 'http://placeholder').searchParams
+    roomId = params.get('room')
+    deviceId = params.get('device')
   } catch {
     roomId = null
   }
@@ -79,7 +109,19 @@ server.on('upgrade', (req, socket, head) => {
   if (!originAllowed(req.headers.origin)) return reject(403, 'Forbidden')
 
   const peers = rooms.get(roomId)
-  const full = Boolean(peers && peers.size >= MAX_PER_ROOM)
+
+  // Capacity is two DEVICES, not two sockets. A client that reconnects -- a
+  // dropped network, or a remount opening a fresh socket before the old one has
+  // finished closing -- takes over its own slot instead of being counted as a
+  // third player and locked out of its own match.
+  let stale = null
+  if (peers && deviceId) {
+    for (const peer of peers) {
+      if (peer.deviceId && peer.deviceId === deviceId) stale = peer
+    }
+  }
+  const occupants = peers ? peers.size - (stale ? 1 : 0) : 0
+  const full = occupants >= MAX_PER_ROOM
 
   wss.handleUpgrade(req, socket, head, (ws) => {
     // A refused HTTP upgrade reaches the browser only as an opaque 1006, so a
@@ -89,7 +131,12 @@ server.on('upgrade', (req, socket, head) => {
       ws.close(CLOSE_ROOM_FULL, 'room full')
       return
     }
+    if (stale) {
+      stale.supersededBy = deviceId
+      stale.close(CLOSE_SUPERSEDED, 'reconnected elsewhere')
+    }
     ws.roomId = roomId
+    ws.deviceId = deviceId || null
     wss.emit('connection', ws, req)
   })
 })
@@ -100,7 +147,6 @@ wss.on('connection', (ws) => {
   rooms.get(roomId).add(ws)
 
   ws.isAlive = true
-  ws.deviceId = null
   ws.on('pong', () => {
     ws.isAlive = true
   })
@@ -138,8 +184,9 @@ wss.on('connection', (ws) => {
       if (peers.size === 0) rooms.delete(roomId)
     }
     // A closed tab or dropped network sends no LEAVE_ROOM, so synthesize one
-    // and the surviving player sees the opponent go offline.
-    if (ws.deviceId) {
+    // and the surviving player sees the opponent go offline. A socket replaced
+    // by a reconnect from the same device is not a departure.
+    if (ws.deviceId && !ws.supersededBy) {
       relay(JSON.stringify({ type: 'LEAVE_ROOM', roomId, deviceId: ws.deviceId }))
     }
   })

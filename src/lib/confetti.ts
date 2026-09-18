@@ -12,9 +12,11 @@ interface Particle {
   alpha: number
 }
 
-const COLORS = ['#4da3ff', '#35b57f', '#ffd24d', '#ff5470', '#b87cff', '#00f5d4']
+const DEFAULT_COLORS = ['#4da3ff', '#35b57f', '#ffd24d', '#ff5470', '#b87cff', '#00f5d4']
 
-export function triggerConfetti() {
+/** @param palette colours from the player's equipped win effect. */
+export function triggerConfetti(palette: string[] = DEFAULT_COLORS) {
+  const COLORS = palette.length > 0 ? palette : DEFAULT_COLORS
   const canvas = document.createElement('canvas')
   canvas.style.position = 'fixed'
   canvas.style.top = '0'

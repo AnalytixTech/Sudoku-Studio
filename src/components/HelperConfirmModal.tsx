@@ -1,11 +1,11 @@
 import { memo } from 'react'
-import { IconSparkles } from './Icons'
+import { IconSparkles, IconCoin, IconWarning, IconClose } from './Icons'
 import { sound } from '../lib/audio'
 
 export interface HelperConfirmModalProps {
   title: string
   cost: number
-  currentXp: number
+  currentCoins: number
   description: string
   onConfirm: () => void
   onClose: () => void
@@ -14,13 +14,13 @@ export interface HelperConfirmModalProps {
 function HelperConfirmModal({
   title,
   cost,
-  currentXp,
+  currentCoins,
   description,
   onConfirm,
   onClose,
 }: HelperConfirmModalProps) {
-  const hasEnoughXp = currentXp >= cost
-  const remainingXp = currentXp - cost
+  const canAfford = currentCoins >= cost
+  const remaining = currentCoins - cost
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -30,7 +30,9 @@ function HelperConfirmModal({
             <IconSparkles size={22} color="var(--accent)" />
             <h2>{title}</h2>
           </div>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button className="btn-close" onClick={onClose} aria-label="Close">
+            <IconClose size={16} />
+          </button>
         </header>
 
         <div className="helper-body">
@@ -38,28 +40,30 @@ function HelperConfirmModal({
 
           <div className="helper-cost-card">
             <div className="cost-row">
-              <span className="cost-label">Tool XP Cost:</span>
-              <span className="cost-value">-{cost} XP</span>
+              <span className="cost-label">Cost:</span>
+              <span className="cost-value inline-coin"><IconCoin size={13} /> {cost}</span>
             </div>
             <div className="cost-row">
-              <span className="cost-label">Your Current Balance:</span>
-              <span className="cost-value">{currentXp} XP</span>
+              <span className="cost-label">Your balance:</span>
+              <span className="cost-value inline-coin"><IconCoin size={13} /> {currentCoins}</span>
             </div>
-            {hasEnoughXp ? (
+            {canAfford ? (
               <div className="cost-row cost-result">
-                <span className="cost-label">Balance After Use:</span>
-                <span className="cost-value cost-remaining">{remainingXp} XP</span>
+                <span className="cost-label">Balance after:</span>
+                <span className="cost-value cost-remaining inline-coin">
+                  <IconCoin size={13} /> {remaining}
+                </span>
               </div>
             ) : (
               <div className="cost-warn">
-                ⚠️ Insufficient XP! Win single-player puzzles or battle matches to earn more XP.
+                <IconWarning size={14} /> Not enough coins. Win puzzles and daily challenges to earn more.
               </div>
             )}
           </div>
         </div>
 
         <div className="modal-actions">
-          {hasEnoughXp ? (
+          {canAfford ? (
             <>
               <button className="btn sub-btn" onClick={onClose}>
                 Cancel
@@ -71,7 +75,7 @@ function HelperConfirmModal({
                   onConfirm()
                 }}
               >
-                Confirm (-{cost} XP)
+                Confirm (<IconCoin size={14} /> {cost})
               </button>
             </>
           ) : (
